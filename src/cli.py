@@ -1,0 +1,1 @@
+"""CLI: encode, decode, verify."""
