@@ -1,1 +1,1 @@
-"""Plumbing that knows nothing about video compression."""
+"""Independent tools for video compression."""

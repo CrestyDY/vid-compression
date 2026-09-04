@@ -1,1 +1,1 @@
-"""Encode loop: decode input frames, write FULL payloads into a `.myv`."""
+"""Converts raw RGB to our compressed output"""

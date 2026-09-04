@@ -1,1 +1,1 @@
-"""Decode loop: read a `.myv` and reconstruct frames."""
+"""Convert our compressed video to a viewable video."""

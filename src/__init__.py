@@ -1,1 +1,1 @@
-"""Experimental .myv video codec."""
+"""Experimental video compression module"""

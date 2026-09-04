@@ -1,1 +1,1 @@
-"""CLI: encode, decode, verify."""
+"""Command line interface for vid-compression."""

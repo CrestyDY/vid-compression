@@ -1,1 +1,1 @@
-"""Pydantic object definitions for the codec."""
+"""Pydantic object definitions for the all objects used"""
