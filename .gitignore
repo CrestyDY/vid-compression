@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.idea/
+
+# Agent scratch: plan ledgers, briefs and review packages. The git history is the
+# record once a plan is finished.
+.superpowers/
+
+# Benchmark clips are generated, not authored: `uv run python bench/make_clips.py`
+# reproduces them byte-identically from seeded generators.
+bench/clips/
+
+# Real footage for measurement. Drop files here; nothing in it is committed.
+samples/*
+!samples/README.md
+
+# Codec output
+*.myv
