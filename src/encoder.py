@@ -64,6 +64,33 @@ def encode(
     )
 
     dst.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write to a temporary file and rename only on success. MyvWriter back-patches the
+    # frame count on close, so a failure partway through would otherwise leave a
+    # structurally *valid* .myv that is silently missing its tail — and `info` would
+    # report it as a complete archive. A half-written file is worse than no file.
+    partial = dst.with_name(dst.name + ".partial")
+    try:
+        _write(src, partial, header, stats, info, pix_fmt, use_entropy, progress)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    partial.replace(dst)
+
+    return stats
+
+
+def _write(
+    src: Path,
+    dst: Path,
+    header: Header,
+    stats: CodecStats,
+    info,
+    pix_fmt: PixelFormat,
+    use_entropy: bool,
+    progress,
+) -> None:
+    """The streaming encode itself. Separated so the caller owns the atomic rename."""
     with open(dst, "wb") as out, ffmpeg.decode_frames(src, pix_fmt, info) as frames:
         with MyvWriter(out, header) as writer:
             prev: np.ndarray | None = None
@@ -83,5 +110,3 @@ def encode(
                     progress(index, info.num_frames)
 
                 prev = frame
-
-    return stats

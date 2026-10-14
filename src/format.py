@@ -32,6 +32,8 @@ from __future__ import annotations
 import struct
 from typing import BinaryIO, Iterator
 
+from pydantic import ValidationError
+
 from src.models.frame import Frame, FrameType
 from src.models.header import Header
 from src.models.pixel_format import by_id
@@ -83,10 +85,17 @@ def unpack_header(data: bytes) -> Header:
         pix_fmt = by_id(fmt_id)
     except ValueError as exc:
         raise BadMyvFile(str(exc)) from None
-    return Header(
-        width=w, height=h, fps_num=num, fps_den=den, frame_count=count,
-        pix_fmt=pix_fmt, entropy=bool(flags & _FLAG_ENTROPY),
-    )
+    try:
+        return Header(
+            width=w, height=h, fps_num=num, fps_den=den, frame_count=count,
+            pix_fmt=pix_fmt, entropy=bool(flags & _FLAG_ENTROPY),
+        )
+    except ValidationError as exc:
+        # A zeroed dimension or frame rate is a corrupt file, not a programming error, so
+        # it must not surface as a pydantic ValidationError.
+        raise BadMyvFile(
+            f"header holds invalid values ({w}x{h} @ {num}/{den}, {count} frames): {exc}"
+        ) from None
 
 
 class MyvWriter:

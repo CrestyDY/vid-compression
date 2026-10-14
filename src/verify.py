@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.decoder import open_myv
+from src.decoder import open_myv, read_header
 from src.models.pixel_format import PixelFormat
 from src.models.verify import Mismatch, VerifyResult
 from src.utils import ffmpeg
@@ -27,6 +27,29 @@ def verify(
     where it happened is more useful than counting how many followed.
     """
     myv = Path(myv)
+
+    # Compare dimensions before comparing pixels. Without this, a mismatch reaches
+    # np.array_equal — which answers False for non-broadcastable shapes rather than
+    # raising — and then dies inside _describe on the elementwise compare. Verifying
+    # against the wrong source file is an ordinary slip and deserves a real answer.
+    stored = read_header(myv)
+    info = ffmpeg.probe(source)
+    if (info.width, info.height) != (stored.width, stored.height):
+        return VerifyResult(
+            frames_checked=0,
+            source_frames=info.num_frames or 0,
+            decoded_frames=stored.frame_count,
+            mismatch=Mismatch(
+                frame=0, differing_pixels=0, first_at=None, expected=None, got=None,
+                max_abs_error=0,
+                note=(
+                    f"dimension mismatch: the source is "
+                    f"{info.width}x{info.height} but the .myv holds "
+                    f"{stored.width}x{stored.height} — is this the right source file?"
+                ),
+            ),
+        )
+
     with open_myv(myv) as (header, decoded):
         fmt = pix_fmt or header.pix_fmt
         with ffmpeg.decode_frames(source, fmt) as originals:
@@ -70,6 +93,17 @@ def verify(
 def _describe(index: int, original: np.ndarray, got: np.ndarray) -> Mismatch:
     differing = np.any(original != got, axis=2)
     ys, xs = np.nonzero(differing)
+    if ys.size == 0:
+        # array_equal said they differ but no pixel does: the shapes broadcast against
+        # each other. Report that rather than indexing into an empty array.
+        return Mismatch(
+            frame=index, differing_pixels=0, first_at=None, expected=None, got=None,
+            max_abs_error=0,
+            note=(
+                f"frame {index}: shapes differ — source {original.shape} vs "
+                f"reconstructed {got.shape}"
+            ),
+        )
     y, x = int(ys[0]), int(xs[0])
     error = np.abs(original.astype(np.int16) - got.astype(np.int16))
     return Mismatch(

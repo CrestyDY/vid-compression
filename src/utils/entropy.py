@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import zstandard
 
+from src.utils.errors import CorruptPayload
+
 #: Fixed, so size comparisons across runs and versions stay meaningful.
 LEVEL = 10
 
@@ -23,6 +25,14 @@ def compress(payload: bytes, *, enabled: bool) -> bytes:
 
 
 def decompress(payload: bytes, *, enabled: bool) -> bytes:
+    """Raises :class:`CorruptPayload` rather than letting zstandard's type escape.
+
+    A flipped bit on disk is an ordinary failure, and the caller that knows *which frame*
+    this payload came from is the one that should say so.
+    """
     if not enabled:
         return payload
-    return zstandard.ZstdDecompressor().decompress(payload)
+    try:
+        return zstandard.ZstdDecompressor().decompress(payload)
+    except zstandard.ZstdError as exc:
+        raise CorruptPayload(str(exc)) from None

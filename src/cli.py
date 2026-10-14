@@ -93,6 +93,12 @@ def main(argv: list[str] | None = None) -> int:
     except (FFmpegError, BadMyvFile) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except OSError as exc:
+        # A missing or unreadable file is the same user mistake whichever subcommand hit
+        # it, so it gets the same exit code. `encode` reached this via probe()'s own
+        # check; decode, info and verify open the .myv directly.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     return 2
 

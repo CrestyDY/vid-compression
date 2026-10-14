@@ -14,8 +14,13 @@ class Mismatch(BaseModel):
     expected: tuple[int, ...] | None
     got: tuple[int, ...] | None
     max_abs_error: int
+    #: Set when the comparison could not be made pixel-by-pixel at all — a dimension
+    #: mismatch, say — in which case it is the whole explanation.
+    note: str | None = None
 
     def describe(self) -> str:
+        if self.note is not None:
+            return self.note
         if self.first_at is None:
             return f"frame {self.frame}: frame counts differ"
         y, x = self.first_at

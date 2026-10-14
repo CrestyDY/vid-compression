@@ -22,7 +22,7 @@ from src.models.frame import FrameType
 from src.models.header import Header
 from src.modes import MODES
 from src.utils import entropy
-from src.utils.errors import BadMyvFile
+from src.utils.errors import BadMyvFile, CorruptPayload
 
 
 @contextmanager
@@ -60,10 +60,18 @@ def _reconstruct(reader: MyvReader) -> Iterator[np.ndarray]:
                 f"first frame is {record.type.name}, but there is nothing for it to "
                 f"predict from; the file must start with a FULL frame"
             )
-        payload = entropy.decompress(record.payload, enabled=header.entropy)
+        try:
+            payload = entropy.decompress(record.payload, enabled=header.entropy)
+        except CorruptPayload as exc:
+            raise BadMyvFile(
+                f"frame {index} ({record.type.name}): payload could not be "
+                f"decompressed: {exc}"
+            ) from None
         try:
             frame = MODES[record.type].decode(payload, prev, shape)
-        except ValueError as exc:
+        except (ValueError, IndexError) as exc:
+            # IndexError too: a corrupt coordinate in a delta record indexes outside the
+            # frame, which is a broken file rather than a bug worth a traceback.
             raise BadMyvFile(f"frame {index} ({record.type.name}): {exc}") from None
         prev = frame
         yield frame
