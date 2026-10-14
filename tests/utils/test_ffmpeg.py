@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from conftest import requires_ffmpeg
@@ -33,3 +34,38 @@ def test_video_info_frame_count_is_optional():
     info = VideoInfo(width=2, height=2, fps_num=30000, fps_den=1001)
     assert info.num_frames is None
     assert abs(info.fps - 29.97) < 0.01
+
+
+@requires_ffmpeg
+def test_decode_frames_round_trips_exactly(write_clip, moving_frames):
+    from src.utils.ffmpeg import decode_frames
+
+    original = moving_frames()
+    with decode_frames(write_clip(original)) as frames:
+        decoded = list(frames)
+
+    assert len(decoded) == len(original)
+    for want, got in zip(original, decoded):
+        assert got.shape == (24, 32, 3)
+        assert got.dtype == np.uint8
+        assert np.array_equal(want, got)
+
+
+@requires_ffmpeg
+def test_decode_frames_survives_early_abandonment(write_clip, moving_frames):
+    """Stopping after one frame must not raise: we asked ffmpeg to stop."""
+    from src.utils.ffmpeg import decode_frames
+
+    with decode_frames(write_clip(moving_frames())) as frames:
+        first = next(iter(frames))
+    assert first.shape == (24, 32, 3)
+
+
+@requires_ffmpeg
+def test_decoded_frames_are_independently_retainable(write_clip, moving_frames):
+    """The encoder holds frame N-1 while reading N, so frames must not share a buffer."""
+    from src.utils.ffmpeg import decode_frames
+
+    with decode_frames(write_clip(moving_frames())) as frames:
+        held = list(frames)
+    assert not np.array_equal(held[0], held[-1])
