@@ -52,15 +52,23 @@ uv run pytest    # run the tests
 
 ```bash
 uv run vidc encode input.mp4 video.myv    # MP4 -> .myv, prints a size report
-uv run vidc decode video.myv output.mp4   # .myv -> MP4, for sharing or watching
+uv run vidc play   video.myv              # watch it directly, no export step
+uv run vidc decode video.myv output.mp4   # .myv -> MP4, for sharing or archiving
 uv run vidc info   video.myv              # header and per-mode breakdown
 uv run vidc verify input.mp4 video.myv    # prove the round-trip is pixel-exact
 ```
+
+`play` renders the decoder's own frames as they are reconstructed, so what you see is the
+codec's actual output rather than an H.264 re-encode of it — which is what you want when a
+frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--loop`.
 
 | flag | effect |
 | --- | --- |
 | `encode --no-entropy` | skip the final zstd stage, to see what the representation alone costs |
 | `decode --lossless` | export with `libx264rgb -qp 0` instead of a watchable re-encode |
+| `play --speed 4 --width 480` | play at 4x in a 480px-wide window |
+
+Needs `ffplay` for `play` — it ships with ffmpeg.
 
 The size report always shows both the pre-entropy and the final size, because what the
 codec's *representation* bought and what generic compression bought are different questions
@@ -78,6 +86,7 @@ src/
   format.py         container header + frame records, and their byte packing
   verify.py         the losslessness check
   stats.py          renders the size report
+  player.py         direct playback, by piping decoded frames to ffplay
   selector.py       (M2) prices every candidate mode per frame
   models/           pydantic value objects: header, frame, pixel format, stats, verify
   modes/            one module per encoding mode, each a pure encode/decode/cost triple
