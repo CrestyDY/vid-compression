@@ -9,6 +9,7 @@ from pathlib import Path
 from src import stats as stats_report
 from src.decoder import open_myv, read_header
 from src.encoder import encode as encode_file
+from src.player import play as play_myv
 from src.utils import ffmpeg
 from src.utils.errors import BadMyvFile, FFmpegError
 from src.utils.sizes import human_bytes
@@ -30,6 +31,14 @@ def _build_parser() -> argparse.ArgumentParser:
     dec.add_argument("src", type=Path)
     dec.add_argument("dst", type=Path)
     dec.add_argument("--lossless", action="store_true", help="export with libx264rgb -qp 0")
+
+    pl = sub.add_parser("play", help="watch a .myv directly, with no export step")
+    pl.add_argument("src", type=Path)
+    pl.add_argument("--start", type=int, default=0, help="first frame to show")
+    pl.add_argument("--count", type=int, default=0, help="how many frames (0 = all)")
+    pl.add_argument("--speed", type=float, default=1.0, help="playback rate multiplier")
+    pl.add_argument("--width", type=int, default=None, help="window width in pixels")
+    pl.add_argument("--loop", action="store_true", help="repeat until the window closes")
 
     info = sub.add_parser("info", help="header and per-mode breakdown")
     info.add_argument("src", type=Path)
@@ -60,6 +69,14 @@ def main(argv: list[str] | None = None) -> int:
                     pix_fmt=header.pix_fmt, lossless=args.lossless,
                 )
             print(f"{args.src} -> {args.dst} ({written} frames)")
+            return 0
+
+        if args.command == "play":
+            shown = play_myv(
+                args.src, start=args.start, count=args.count,
+                speed=args.speed, width=args.width, loop=args.loop,
+            )
+            print(f"  {shown} frames shown")
             return 0
 
         if args.command == "info":
