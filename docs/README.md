@@ -1,0 +1,39 @@
+# Documentation
+
+- **[ROADMAP.md](ROADMAP.md)** — the eleven milestones, the measured target for each, and
+  where the project goes after them.
+- **[m1-results.md](m1-results.md)** — the V2 lossless codec. `FULL` + `PIXEL_DELTA`, a fixed
+  strategy, and the baseline every later milestone is compared against.
+- **[m2-results.md](m2-results.md)** — mode selection. 2.81x on scene cuts, and the fix for
+  M1's file-larger-than-raw result.
+
+Every results document is measured on the same five benchmark clips, so the numbers are
+directly comparable. Regenerate the clips with:
+
+```
+uv run python bench/make_clips.py
+```
+
+The generators are seeded and the encode settings fixed, so this reproduces them
+byte-identically.
+
+## The story so far
+
+Final on-disk size at each milestone's defaults. 320×240, 60 frames, raw RGB24 = 13.18 MB,
+lossless throughout.
+
+| clip | what it is | M1 | M2 | vs raw |
+| --- | --- | ---: | ---: | ---: |
+| screen | static UI, sparse edits | 4.21 KB | **4.21 KB** | 3206.68x |
+| cut | three scenes, two hard cuts | 973.75 KB | **347.01 KB** | 38.90x |
+| slide | textured box translating | 2.76 MB | **2.76 MB** | 4.78x |
+| noise | moving gradient + grain | 18.06 MB | **11.70 MB** | 1.13x |
+| mixed | four quadrants, four behaviours | 760.69 KB | **760.69 KB** | 17.75x |
+
+Each milestone helps the clips whose weakness it addresses and leaves the others alone —
+the mode registry working as designed. Nothing here is a general-purpose improvement; each
+is a specific answer to a specific failure the previous milestone's numbers exposed.
+
+> Results documents are **historical records**. Their figures were measured when the
+> milestone landed and are not re-measured afterwards, so an older document may quote a size
+> that newer code no longer produces. The table above is the current one.

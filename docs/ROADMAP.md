@@ -30,9 +30,9 @@ the point — the measurements are what motivate the next piece of work.
 
 | # | milestone | delivers | reference target |
 | --- | --- | --- | --- |
-| **M0** | Foundations | deps, test harness, `probe`, frame streaming over ffmpeg pipes | video I/O layer, round-trip exact |
-| **M1** | V2 codec | `FULL` + `PIXEL_DELTA`, container, encoder/decoder, `verify`, CLI | lossless; 4.15 KB `screen`, 17.98 MB `noise` |
-| **M2** | V3 selection | price every mode per frame, keep the smallest | 2.8x on scene cuts (`cut` 853 KB → 226 KB) |
+| ~~**M0**~~ | ~~Foundations~~ | deps, test harness, `probe`, frame streaming over ffmpeg pipes | **done** — video I/O layer, round-trip exact |
+| ~~**M1**~~ | ~~V2 codec~~ | `FULL` + `PIXEL_DELTA`, container, encoder/decoder, `verify`, CLI | **done** — [results](m1-results.md) |
+| ~~**M2**~~ | ~~V3 selection~~ | price every mode per frame, keep the smallest | **done — 2.81x on `cut`**, and `noise` no longer exceeds raw ([results](m2-results.md)) |
 | **M3** | V4 `BLOCK_DELTA` | whole changed blocks, no per-pixel coordinates | up to 2.4x (`slide` 2.76 MB → 1.56 MB) |
 | **M4** | V5 `MOTION` | block matching + residuals | 4.3x on moving content (`slide` → 372 KB) |
 | **M5** | V6 `TILED` | an N×N grid, each tile choosing its own mode | 1.1x on varied content (`mixed` → 206 KB) |
