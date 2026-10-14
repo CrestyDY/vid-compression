@@ -45,10 +45,16 @@ Container overhead is 328 bytes everywhere: a 28-byte header plus 5 bytes per fr
 Reproduce with:
 
 ```
+uv run python bench/make_clips.py                        # regenerates all five
 uv run vidc encode bench/clips/cut.mp4 out.myv
 uv run vidc verify bench/clips/cut.mp4 out.myv
 uv run vidc encode bench/clips/cut.mp4 out-raw.myv --no-entropy
 ```
+
+The clips are not committed, because they do not need to be: the generators are seeded and
+the encode is `libx264rgb -qp 0 -preset veryslow`, so a fresh run produces **byte-identical**
+files — verified against the clips these figures were taken from. The preset is part of that
+guarantee; changing it changes the bitstream and therefore the source-file sizes quoted here.
 
 ## Observation 1: on dense content the file is *larger* than no compression at all
 

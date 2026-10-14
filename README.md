@@ -99,5 +99,10 @@ so `Header` is a model and the struct that serialises it lives in `format.py`.
 
 ### Measuring
 
-Benchmark clips are not committed. `docs/m1-results.md` records how they are built and the
-exact byte counts every later milestone is compared against.
+```bash
+uv run python bench/make_clips.py    # generate the five benchmark clips
+```
+
+The clips are not committed because they do not need to be — the generators are seeded and
+the encode settings fixed, so this reproduces them byte-identically. Every figure in
+`docs/` comes from them, so results stay comparable across milestones.
