@@ -69,3 +69,33 @@ def test_decoded_frames_are_independently_retainable(write_clip, moving_frames):
     with decode_frames(write_clip(moving_frames())) as frames:
         held = list(frames)
     assert not np.array_equal(held[0], held[-1])
+
+
+@requires_ffmpeg
+def test_encode_frames_lossless_round_trips_exactly(tmp_path, moving_frames):
+    from src.utils.ffmpeg import decode_frames, encode_frames
+
+    original = moving_frames()
+    out = tmp_path / "out.mp4"
+    written = encode_frames(
+        out, original, width=32, height=24, fps_num=25, fps_den=1, lossless=True
+    )
+    assert written == len(original)
+
+    with decode_frames(out) as frames:
+        decoded = list(frames)
+    for want, got in zip(original, decoded):
+        assert np.array_equal(want, got)
+
+
+@requires_ffmpeg
+def test_encode_frames_reports_ffmpeg_stderr_on_failure(tmp_path, moving_frames):
+    from src.utils.ffmpeg import encode_frames
+
+    with pytest.raises(FFmpegError):
+        # A zero width is rejected by ffmpeg; the error must carry its stderr, not a
+        # BrokenPipeError traceback.
+        encode_frames(
+            tmp_path / "bad.mp4", moving_frames(),
+            width=0, height=0, fps_num=25, fps_den=1, lossless=True,
+        )

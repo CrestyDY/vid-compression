@@ -12,7 +12,7 @@ import shutil
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 import numpy as np
 
@@ -144,3 +144,72 @@ def decode_frames(
                 f"ffmpeg failed decoding {path} (exit {code}):\n"
                 f"{stderr.decode(errors='replace')}"
             )
+
+
+def encode_frames(
+    path: str | Path,
+    frames: Iterable[np.ndarray],
+    *,
+    width: int,
+    height: int,
+    fps_num: int,
+    fps_den: int,
+    pix_fmt: PixelFormat = RGB24,
+    lossless: bool = False,
+) -> int:
+    """Pipe frames into ffmpeg to produce a playable MP4. Returns the frame count.
+
+    With ``lossless=False`` the output is a re-encode and is not byte-identical to what went
+    in — it's for watching. Proving the round-trip is exact is ``verify``'s job, and it does
+    that by comparing arrays in memory instead.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    if lossless:
+        # libx264rgb encodes RGB directly. Plain libx264 -qp 0 is only lossless *after* the
+        # RGB->YUV conversion, and that conversion rounds — so it would quietly cost a pixel
+        # value here and there, which defeats the point of asking for lossless.
+        codec = ["-c:v", "libx264rgb", "-qp", "0", "-pix_fmt", "rgb24"]
+    else:
+        # yuv420p so ordinary players and browsers can open the result.
+        codec = ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"]
+
+    cmd = [
+        _require("ffmpeg"), "-v", "error", "-nostdin", "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", pix_fmt.ffmpeg_name,
+        "-s", f"{width}x{height}",
+        "-r", f"{fps_num}/{fps_den}",
+        "-i", "-",
+        "-preset", "medium", *codec,
+        str(path),
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert proc.stdin is not None
+
+    written = 0
+    try:
+        for frame in frames:
+            proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+            written += 1
+        proc.stdin.close()
+    except (BrokenPipeError, OSError):
+        # ffmpeg died early; its stderr says why, and that's far more useful than the
+        # BrokenPipeError traceback.
+        stderr = proc.stderr.read() if proc.stderr else b""
+        proc.wait()
+        raise FFmpegError(
+            f"ffmpeg closed the pipe while writing {path}:\n"
+            f"{stderr.decode(errors='replace')}"
+        ) from None
+
+    stderr = proc.stderr.read() if proc.stderr else b""
+    if proc.stderr:
+        proc.stderr.close()
+    code = proc.wait()
+    if code != 0:
+        raise FFmpegError(
+            f"ffmpeg failed writing {path} (exit {code}):\n{stderr.decode(errors='replace')}"
+        )
+    return written
