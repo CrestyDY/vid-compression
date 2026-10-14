@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
+
 class PixelFormat(BaseModel):
     """PixelFormat: id, name, ffmpeg name, channel count."""
 

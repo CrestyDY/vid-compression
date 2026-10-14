@@ -1,10 +1,11 @@
 """ffmpeg wrapper."""
 
-from pathlib import Path
-import subprocess
 import json
+import subprocess
+from pathlib import Path
 
 from src.models.video import VideoInfo
+
 
 def probe(path: str | Path) -> VideoInfo:
     """Probe video file."""

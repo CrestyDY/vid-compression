@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class Header(BaseModel):
     model_config = ConfigDict(frozen=True)
 
