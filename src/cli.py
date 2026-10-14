@@ -10,6 +10,7 @@ from src import stats as stats_report
 from src.decoder import open_myv, read_header
 from src.encoder import encode as encode_file
 from src.models.frame import FrameType
+from src.models.options import ModeOptions
 from src.player import play as play_myv
 from src.selector import STRATEGIES
 from src.utils import ffmpeg
@@ -48,6 +49,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--modes", default=None,
         help="restrict the candidate set, e.g. FULL,PIXEL_DELTA — to measure one mode alone",
     )
+    enc.add_argument(
+        "--block-size", type=int, default=16,
+        help="grid cell side length for BLOCK_DELTA (default: 16)",
+    )
 
     dec = sub.add_parser("decode", help=".myv -> MP4, for sharing or archiving")
     dec.add_argument("src", type=Path)
@@ -82,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
                 use_entropy=not args.no_entropy,
                 selection=args.selection,
                 enabled_modes=_parse_modes(args.modes),
+                opts=ModeOptions(block_size=args.block_size),
             )
             print(f"{args.src} -> {args.dst}")
             print(stats_report.render(result))

@@ -21,5 +21,6 @@ def test_frame_type_values_are_stable():
 
 
 def test_only_full_needs_no_reference_frame():
-    assert PREDICTED == frozenset({FrameType.PIXEL_DELTA})
+    """Every mode but FULL reconstructs from a predecessor, so frame 0 must be FULL."""
+    assert PREDICTED == frozenset(set(FrameType) - {FrameType.FULL})
     assert FrameType.FULL not in PREDICTED

@@ -43,6 +43,7 @@ import numpy as np
 
 from src.models.choice import Choice
 from src.models.frame import FrameType
+from src.models.options import DEFAULT_OPTIONS, ModeOptions
 from src.modes import MODES, PREDICTED
 from src.utils import entropy
 
@@ -70,6 +71,7 @@ def choose(
     *,
     strategy: str = "trial",
     enabled: frozenset[FrameType] | None = None,
+    opts: ModeOptions = DEFAULT_OPTIONS,
     use_entropy: bool = True,
 ) -> Choice:
     """Pick the cheapest representation of ``cur`` given ``prev``."""
@@ -84,10 +86,10 @@ def choose(
         pick = FrameType.FULL if prev is None else FrameType.PIXEL_DELTA
         if pick not in available:
             raise ValueError(f"the 'fixed' strategy needs {pick.name} enabled")
-        payload = MODES[pick].encode(cur, prev)
+        payload = MODES[pick].encode(cur, prev, opts)
         return Choice(frame_type=pick, payload=payload, candidate_raw={pick: len(payload)})
 
-    payloads = {ft: MODES[ft].encode(cur, prev) for ft in available}
+    payloads = {ft: MODES[ft].encode(cur, prev, opts) for ft in available}
     raw = {ft: len(p) for ft, p in payloads.items()}
 
     if strategy == "actual":

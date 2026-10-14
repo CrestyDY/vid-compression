@@ -13,7 +13,7 @@ Reconstruction is **lossless** at every milestone: every decoded frame is byte-i
 the ffmpeg-decoded source frame. That is the invariant — a change that improves size but
 breaks it has failed.
 
-### Current status — M2
+### Current status — M3
 
 Two competing representations, and an encoder that prices both on every frame and keeps the
 smaller one.
@@ -72,6 +72,7 @@ frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--lo
 | `encode --no-entropy` | skip the final zstd stage, to see what the representation alone costs |
 | `encode --selection fixed\|actual\|trial` | how modes are ranked (default `trial`, see [why](docs/m2-results.md)) |
 | `encode --modes FULL,PIXEL_DELTA` | restrict the candidate set, to measure one mode alone |
+| `encode --block-size N` | block size for BLOCK_DELTA (default 16; 32 is 1-9% better) |
 | `decode --lossless` | export with `libx264rgb -qp 0` instead of a watchable re-encode |
 | `play --speed 4 --width 480` | play at 4x in a 480px-wide window |
 

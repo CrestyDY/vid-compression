@@ -31,6 +31,8 @@ class CodecStats(BaseModel):
 
     #: How modes were ranked. See src.selector.STRATEGIES.
     selection: str = "trial"
+    #: BLOCK_DELTA's grid cell side length, recorded so a sweep's rows are labelled.
+    block_size: int = 16
     #: Summed pre-entropy size per mode across every frame where it was *priced*, won or
     #: lost. This is what makes "if locked to a single mode" answerable.
     candidate_raw: dict[FrameType, int] = Field(default_factory=dict)

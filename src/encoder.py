@@ -21,6 +21,7 @@ import numpy as np
 from src.format import FRAME_HEADER_SIZE, HEADER_SIZE, MyvWriter
 from src.models.frame import FrameType
 from src.models.header import Header
+from src.models.options import DEFAULT_OPTIONS, ModeOptions
 from src.models.pixel_format import RGB24, PixelFormat
 from src.models.stats import CodecStats
 from src.modes import pixel_delta
@@ -35,6 +36,7 @@ def encode(
     use_entropy: bool = True,
     selection: str = "trial",
     enabled_modes: frozenset[FrameType] | None = None,
+    opts: ModeOptions = DEFAULT_OPTIONS,
     pix_fmt: PixelFormat = RGB24,
     progress=None,
 ) -> CodecStats:
@@ -68,6 +70,7 @@ def encode(
         entropy_enabled=use_entropy,
         container_bytes=HEADER_SIZE,
         selection=selection,
+        block_size=opts.block_size,
     )
 
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -80,7 +83,7 @@ def encode(
     try:
         _write(
             src, partial, header, stats, info, pix_fmt, use_entropy,
-            selection, enabled_modes, progress,
+            selection, enabled_modes, opts, progress,
         )
     except BaseException:
         partial.unlink(missing_ok=True)
@@ -100,6 +103,7 @@ def _write(
     use_entropy: bool,
     selection: str,
     enabled_modes: frozenset[FrameType] | None,
+    opts: ModeOptions,
     progress,
 ) -> None:
     """The streaming encode itself. Separated so the caller owns the atomic rename."""
@@ -111,6 +115,7 @@ def _write(
                     frame, prev,
                     strategy=selection,
                     enabled=enabled_modes,
+                    opts=opts,
                     use_entropy=use_entropy,
                 )
                 stored = entropy.compress(pick.payload, enabled=use_entropy)
