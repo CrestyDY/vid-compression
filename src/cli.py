@@ -9,11 +9,25 @@ from pathlib import Path
 from src import stats as stats_report
 from src.decoder import open_myv, read_header
 from src.encoder import encode as encode_file
+from src.models.frame import FrameType
 from src.player import play as play_myv
+from src.selector import STRATEGIES
 from src.utils import ffmpeg
 from src.utils.errors import BadMyvFile, FFmpegError
 from src.utils.sizes import human_bytes
 from src.verify import verify as verify_files
+
+
+def _parse_modes(spec: str | None) -> frozenset[FrameType] | None:
+    """``"FULL,PIXEL_DELTA"`` -> a candidate set. ``None`` means every mode."""
+    if not spec:
+        return None
+    names = [part.strip().upper() for part in spec.split(",") if part.strip()]
+    try:
+        return frozenset(FrameType[name] for name in names)
+    except KeyError as exc:
+        known = ", ".join(ft.name for ft in FrameType)
+        raise ValueError(f"unknown mode {exc.args[0]!r}; known modes are {known}") from None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -26,6 +40,14 @@ def _build_parser() -> argparse.ArgumentParser:
     enc.add_argument("src", type=Path)
     enc.add_argument("dst", type=Path)
     enc.add_argument("--no-entropy", action="store_true", help="skip the final zstd stage")
+    enc.add_argument(
+        "--selection", choices=STRATEGIES, default="trial",
+        help="how modes are ranked (default: trial)",
+    )
+    enc.add_argument(
+        "--modes", default=None,
+        help="restrict the candidate set, e.g. FULL,PIXEL_DELTA — to measure one mode alone",
+    )
 
     dec = sub.add_parser("decode", help=".myv -> MP4, for sharing or archiving")
     dec.add_argument("src", type=Path)
@@ -55,7 +77,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "encode":
-            result = encode_file(args.src, args.dst, use_entropy=not args.no_entropy)
+            result = encode_file(
+                args.src, args.dst,
+                use_entropy=not args.no_entropy,
+                selection=args.selection,
+                enabled_modes=_parse_modes(args.modes),
+            )
             print(f"{args.src} -> {args.dst}")
             print(stats_report.render(result))
             return 0
@@ -108,6 +135,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     except (FFmpegError, BadMyvFile) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        # A bad --modes or --selection value, caught before any work is done.
         print(f"error: {exc}", file=sys.stderr)
         return 2
     except OSError as exc:

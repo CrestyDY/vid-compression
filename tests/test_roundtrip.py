@@ -38,12 +38,31 @@ def test_header_records_the_source_properties(tmp_path, write_clip, moving_frame
 
 
 @requires_ffmpeg
-def test_frame_zero_is_full_and_the_rest_are_deltas(tmp_path, write_clip, moving_frames):
+def test_fixed_strategy_is_frame_zero_full_then_deltas(tmp_path, write_clip, moving_frames):
+    """M1's behaviour, still reachable so its cost stays measurable."""
     src = write_clip(moving_frames())
     dst = tmp_path / "out.myv"
-    stats = encode(src, dst)
+    stats = encode(src, dst, selection="fixed")
     assert stats.mode_counts[FrameType.FULL] == 1
     assert stats.mode_counts[FrameType.PIXEL_DELTA] == 3
+
+
+@requires_ffmpeg
+def test_selection_never_loses_to_the_fixed_strategy(tmp_path, write_clip, moving_frames):
+    """Choosing can only help: the fixed mode is always one of the candidates."""
+    src = write_clip(moving_frames())
+    chosen = encode(src, tmp_path / "chosen.myv")
+    fixed = encode(src, tmp_path / "fixed.myv", selection="fixed")
+    assert chosen.total_bytes <= fixed.total_bytes
+
+
+@requires_ffmpeg
+def test_restricting_modes_forces_the_survivor(tmp_path, write_clip, moving_frames):
+    src = write_clip(moving_frames())
+    stats = encode(
+        src, tmp_path / "full.myv", enabled_modes=frozenset({FrameType.FULL})
+    )
+    assert stats.mode_counts == {FrameType.FULL: 4}
 
 
 @requires_ffmpeg

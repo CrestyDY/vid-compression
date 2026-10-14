@@ -29,9 +29,37 @@ def render(stats: CodecStats) -> str:
         add(f"  vs raw frames      {ratio:>11.2f}x")
 
     if stats.frames:
-        add("  modes:")
+        add(f"  selection          {stats.selection:>12}")
+        add("  modes chosen:")
         for frame_type, count in sorted(stats.mode_counts.items()):
             add(f"    {frame_type.name:<14} {count:>5}")
+
+        # What each mode would have cost if it had been used for every frame it was
+        # priced on. This is what makes the choice's value visible rather than implied.
+        priced = stats.locked_to_one_mode()
+        if len(priced) > 1:
+            label = "final" if stats.candidate_stored else "pre-entropy"
+            add(f"  if locked to one mode ({label}, frame 0 forced to FULL):")
+            best = min(priced.values())
+            for frame_type, size in sorted(priced.items()):
+                ratio = size / best if best else 1.0
+                marker = "  <- best single" if size == best else f"  {ratio:.2f}x worse"
+                add(f"    {frame_type.name:<14} {human_bytes(size):>12}{marker}")
+
+            # The headline for mode selection: what choosing per frame actually shipped,
+            # against the best any single mode could have managed.
+            chosen = stats.stored_bytes if stats.candidate_stored else stats.raw_bytes
+            gain = best / chosen if chosen else 1.0
+            add(
+                f"    {'(choosing)':<14} {human_bytes(chosen):>12}"
+                f"  <- {gain:.2f}x better than the best single mode"
+            )
+
+        if stats.candidate_stored:
+            add(
+                f"  ranking disagreements {stats.ranking_disagreements:>8}"
+                f" of {stats.frames} frames"
+            )
         # Average over *predicted* frames only: frame 0 is FULL and has no reference, so
         # counting it would understate the figure.
         predicted = max(stats.frames - 1, 1)

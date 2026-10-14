@@ -23,7 +23,8 @@ from src.models.frame import FrameType
 from src.models.header import Header
 from src.models.pixel_format import RGB24, PixelFormat
 from src.models.stats import CodecStats
-from src.modes import MODES, pixel_delta
+from src.modes import pixel_delta
+from src.selector import STRATEGIES, choose
 from src.utils import entropy, ffmpeg
 
 
@@ -32,16 +33,21 @@ def encode(
     dst: str | Path,
     *,
     use_entropy: bool = True,
+    selection: str = "trial",
+    enabled_modes: frozenset[FrameType] | None = None,
     pix_fmt: PixelFormat = RGB24,
     progress=None,
 ) -> CodecStats:
     """Encode a video file into a .myv, returning the measurements taken along the way.
 
-    The strategy here is fixed: frame 0 is FULL, every later frame is PIXEL_DELTA. M2
-    replaces that with pricing every mode and keeping the cheapest; keeping this path
-    available is what makes M2's improvement measurable rather than merely asserted.
+    ``selection`` chooses how modes are ranked — see :mod:`src.selector`. ``fixed`` is M1's
+    behaviour, kept so the improvement from choosing is measurable rather than asserted.
+    ``enabled_modes`` restricts the candidate set, which is how a single mode gets measured
+    in isolation.
     """
     src, dst = Path(src), Path(dst)
+    if selection not in STRATEGIES:
+        raise ValueError(f"unknown selection strategy {selection!r}; pick one of {STRATEGIES}")
     info = ffmpeg.probe(src)
 
     header = Header(
@@ -61,6 +67,7 @@ def encode(
         source_bytes=src.stat().st_size,
         entropy_enabled=use_entropy,
         container_bytes=HEADER_SIZE,
+        selection=selection,
     )
 
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +78,10 @@ def encode(
     # report it as a complete archive. A half-written file is worse than no file.
     partial = dst.with_name(dst.name + ".partial")
     try:
-        _write(src, partial, header, stats, info, pix_fmt, use_entropy, progress)
+        _write(
+            src, partial, header, stats, info, pix_fmt, use_entropy,
+            selection, enabled_modes, progress,
+        )
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
@@ -88,6 +98,8 @@ def _write(
     info,
     pix_fmt: PixelFormat,
     use_entropy: bool,
+    selection: str,
+    enabled_modes: frozenset[FrameType] | None,
     progress,
 ) -> None:
     """The streaming encode itself. Separated so the caller owns the atomic rename."""
@@ -95,15 +107,28 @@ def _write(
         with MyvWriter(out, header) as writer:
             prev: np.ndarray | None = None
             for index, frame in enumerate(frames):
-                frame_type = FrameType.FULL if prev is None else FrameType.PIXEL_DELTA
-                payload = MODES[frame_type].encode(frame, prev)
-                stored = entropy.compress(payload, enabled=use_entropy)
-                writer.frame(frame_type, stored)
+                pick = choose(
+                    frame, prev,
+                    strategy=selection,
+                    enabled=enabled_modes,
+                    use_entropy=use_entropy,
+                )
+                stored = entropy.compress(pick.payload, enabled=use_entropy)
+                writer.frame(pick.frame_type, stored)
 
                 changed = None
-                if frame_type is FrameType.PIXEL_DELTA:
-                    changed = pixel_delta.count(payload)
-                stats.record(frame_type, len(payload), len(stored), changed)
+                if pick.frame_type is FrameType.PIXEL_DELTA:
+                    changed = pixel_delta.count(pick.payload)
+                elif prev is not None:
+                    # Report the changed-pixel count even when another mode won, so the
+                    # figure stays comparable across strategies and milestones.
+                    changed = int(np.count_nonzero(np.any(frame != prev, axis=2)))
+
+                stats.record(
+                    pick.frame_type, len(pick.payload), len(stored), changed,
+                    candidate_raw=pick.candidate_raw,
+                    candidate_stored=pick.candidate_stored,
+                )
                 stats.container_bytes += FRAME_HEADER_SIZE
 
                 if progress is not None:

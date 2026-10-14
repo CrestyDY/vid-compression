@@ -13,9 +13,10 @@ Reconstruction is **lossless** at every milestone: every decoded frame is byte-i
 the ffmpeg-decoded source frame. That is the invariant — a change that improves size but
 breaks it has failed.
 
-### Current status — M1
+### Current status — M2
 
-Two competing representations, a fixed strategy, and a proof that the round-trip is exact.
+Two competing representations, and an encoder that prices both on every frame and keeps the
+smaller one.
 
 | mode | describes a frame as | wins when |
 | --- | --- | --- |
@@ -23,9 +24,13 @@ Two competing representations, a fixed strategy, and a proof that the round-trip
 | `PIXEL_DELTA` | `(x, y, ΔR, ΔG, ΔB)` per changed pixel | changes are sparse and scattered |
 
 On the five benchmark clips this ranges from **3206x smaller than raw** (`screen`, a static
-UI) to **0.73x — larger than raw** (`noise`, where nearly every pixel changes every frame).
-That spread is not a defect to hide; it is the measurement that motivates M2. The numbers,
-and what they argue for, are in [docs/m1-results.md](docs/m1-results.md).
+UI) to **1.13x** (`noise`, where nearly every pixel changes every frame).
+
+Selection is worth **2.81x on scene cuts** — and it finds the cuts without being told what a
+cut is, by pricing both representations and keeping the cheaper one. It also fixed M1's worst
+result, where `noise` produced a file *larger* than the raw frames: the answer turned out to
+be `FULL` on all 60 frames, a mode that already existed and was never being asked about. The
+numbers are in [docs/m2-results.md](docs/m2-results.md).
 
 Where this is going next is [docs/ROADMAP.md](docs/ROADMAP.md) — eleven milestones, each a
 response to a weakness the previous one's numbers exposed.
@@ -65,6 +70,8 @@ frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--lo
 | flag | effect |
 | --- | --- |
 | `encode --no-entropy` | skip the final zstd stage, to see what the representation alone costs |
+| `encode --selection fixed\|actual\|trial` | how modes are ranked (default `trial`, see [why](docs/m2-results.md)) |
+| `encode --modes FULL,PIXEL_DELTA` | restrict the candidate set, to measure one mode alone |
 | `decode --lossless` | export with `libx264rgb -qp 0` instead of a watchable re-encode |
 | `play --speed 4 --width 480` | play at 4x in a 480px-wide window |
 
@@ -87,7 +94,7 @@ src/
   verify.py         the losslessness check
   stats.py          renders the size report
   player.py         direct playback, by piping decoded frames to ffplay
-  selector.py       (M2) prices every candidate mode per frame
+  selector.py       prices every candidate mode per frame, keeps the smallest
   models/           pydantic value objects: header, frame, pixel format, stats, verify
   modes/            one module per encoding mode, each a pure encode/decode/cost triple
   utils/            plumbing that knows nothing about video compression
