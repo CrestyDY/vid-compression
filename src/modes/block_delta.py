@@ -35,10 +35,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from src import transform
 from src.models.options import DEFAULT_OPTIONS
 
 MAX_BLOCKS = 0xFFFFFFFF
-_HEADER = 5  # block_size (1) + count (4)
+_HEADER = 6  # block_size (1) + intra filter (1) + count (4)
 _INDEX = 4
 
 
@@ -94,23 +95,30 @@ def encode(cur: np.ndarray, prev: np.ndarray | None, opts=None) -> bytes:
     # One modular delta plane; blocks are sliced out of it rather than recomputed.
     deltas = cur - prev
 
+    # One intra filter for the whole frame, chosen from the delta plane and applied to each
+    # block. Per-block choice would cost a byte per block for a decision that barely varies
+    # within a frame. A delta plane is already low-entropy, so the usual winner here is
+    # de-interleaving rather than spatial prediction - but the chooser decides, not us.
+    filter_id = transform.choose(deltas)
+
     out = bytearray()
-    out += bytes([block_size])
+    out += bytes([block_size, int(filter_id)])
     out += int(indices.size).to_bytes(4, "little")
     for index in indices:
         y0, y1, x0, x1 = _extent(int(index), cur.shape, block_size, cols)
         out += int(index).to_bytes(_INDEX, "little")
-        out += np.ascontiguousarray(deltas[y0:y1, x0:x1]).tobytes()
+        out += transform.apply(deltas[y0:y1, x0:x1], filter_id)
     return bytes(out)
 
 
 def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> np.ndarray:
     if len(payload) < _HEADER:
-        raise ValueError(f"BLOCK_DELTA payload is {len(payload)} bytes; needs at least 5")
+        raise ValueError(f"BLOCK_DELTA payload is {len(payload)} bytes; needs at least 6")
     block_size = payload[0]
     if block_size == 0:
         raise ValueError("BLOCK_DELTA block_size is 0")
-    n = int.from_bytes(payload[1:_HEADER], "little")
+    filter_id = payload[1]
+    n = int.from_bytes(payload[2:_HEADER], "little")
     if prev is None:
         raise ValueError("BLOCK_DELTA needs a reference frame to reconstruct against")
 
@@ -133,9 +141,9 @@ def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> n
         nbytes = (y1 - y0) * (x1 - x0) * shape[2]
         if offset + nbytes > len(payload):
             raise ValueError(f"BLOCK_DELTA truncated inside record {record} of {n}")
-        block = np.frombuffer(
-            payload, dtype=np.uint8, count=nbytes, offset=offset
-        ).reshape(y1 - y0, x1 - x0, shape[2])
+        block = transform.invert(
+            payload[offset : offset + nbytes], filter_id, (y1 - y0, x1 - x0, shape[2])
+        )
         offset += nbytes
         out[y0:y1, x0:x1] += block  # uint8 wraps, undoing the subtraction exactly
 
@@ -149,8 +157,8 @@ def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> n
 def count(payload: bytes) -> int:
     """How many blocks this payload says changed."""
     if len(payload) < _HEADER:
-        raise ValueError(f"BLOCK_DELTA payload is {len(payload)} bytes; needs at least 5")
-    return int.from_bytes(payload[1:_HEADER], "little")
+        raise ValueError(f"BLOCK_DELTA payload is {len(payload)} bytes; needs at least 6")
+    return int.from_bytes(payload[2:_HEADER], "little")
 
 
 def block_size_of(payload: bytes) -> int:

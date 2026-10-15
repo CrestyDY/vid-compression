@@ -13,7 +13,7 @@ Reconstruction is **lossless** at every milestone: every decoded frame is byte-i
 the ffmpeg-decoded source frame. That is the invariant — a change that improves size but
 breaks it has failed.
 
-### Current status — M5
+### Current status — M8
 
 Five competing representations. For every frame the encoder prices all of them and keeps the
 smallest.
@@ -26,8 +26,9 @@ smallest.
 | `MOTION` | `(dx, dy)` per block + residual | content moved rather than changed |
 | `TILED` | an N×N grid, each tile choosing its own mode | different regions want different answers |
 
-On the five benchmark clips this ranges from **6359x smaller than raw** (`screen`, a static
-UI) to **1.78x** (`noise`, where nearly every pixel changes every frame). Reconstruction is
+On the five benchmark clips this ranges from **5936x smaller than raw** (`screen`, a static
+UI) to **1.91x** (`noise`, where nearly every pixel changes every frame). On real 1080p60
+footage it is **7.86x** against raw. Reconstruction is
 lossless in every case, verified per clip and per mode.
 
 Each milestone answers a weakness the previous one's numbers exposed, and helps the clips
@@ -39,6 +40,7 @@ whose weakness it addresses while leaving the others alone:
 | [M3](docs/m3-results.md) | `BLOCK_DELTA` | four clips 1.57–1.90x, by dropping per-pixel coordinates |
 | [M4](docs/m4-results.md) | `MOTION` | `slide` 4.27x |
 | [M5](docs/m5-results.md) | `TILED` | `mixed` 1.16x |
+| [M8](docs/m8-results.md) | intra prediction | `cut` 1.53x — one frame went from 123,806 bytes to **71** |
 
 On `screen` and `slide` this now matches or beats a complete reference implementation of the
 same design. The remaining size gap on the other three is **intra prediction** (M8), which
