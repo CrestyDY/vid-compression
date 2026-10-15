@@ -35,7 +35,7 @@ the point — the measurements are what motivate the next piece of work.
 | ~~**M2**~~ | ~~V3 selection~~ | price every mode per frame, keep the smallest | **done — 2.81x on `cut`**, and `noise` no longer exceeds raw ([results](m2-results.md)) |
 | **M3** | V4 `BLOCK_DELTA` | whole changed blocks, no per-pixel coordinates | up to 2.4x (`slide` 2.76 MB → 1.56 MB) |
 | ~~**M4**~~ | ~~V5 `MOTION`~~ | block matching + residuals | **done — 4.27x on `slide`**, within 0.4% of the full reference ([results](m4-results.md)) |
-| **M5** | V6 `TILED` | an N×N grid, each tile choosing its own mode | 1.1x on varied content (`mixed` → 206 KB) |
+| ~~**M5**~~ | ~~V6 `TILED`~~ | an N×N grid, each tile choosing its own mode | **done — 1.16x on `mixed`**, `screen` ahead of the reference ([results](m5-results.md)) |
 | **M6** | V7 predictor | learned mode prediction instead of trial encoding | 1.4–12x faster encode, some size cost |
 | **M7** | Keyframes | forced `FULL` every N frames + a seek index | seeking bounded by interval, not position |
 | **M8** | Intra prediction | de-interleave channels, store spatial differences | **1.51x on real footage** |

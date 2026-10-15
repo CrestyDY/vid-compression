@@ -44,7 +44,7 @@ import numpy as np
 from src.models.choice import Choice
 from src.models.frame import FrameType
 from src.models.options import DEFAULT_OPTIONS, ModeOptions
-from src.modes import MODES, PREDICTED
+from src.modes import MODES, PREDICTED, TILEABLE, tiled
 from src.utils import entropy
 
 #: Selection strategies, in the order they were introduced.
@@ -89,7 +89,14 @@ def choose(
         payload = MODES[pick].encode(cur, prev, opts)
         return Choice(frame_type=pick, payload=payload, candidate_raw={pick: len(payload)})
 
-    payloads = {ft: MODES[ft].encode(cur, prev, opts) for ft in available}
+    payloads = {
+        ft: (
+            _build_tiled(cur, prev, strategy, opts, use_entropy)
+            if ft is FrameType.TILED
+            else MODES[ft].encode(cur, prev, opts)
+        )
+        for ft in available
+    }
     raw = {ft: len(p) for ft, p in payloads.items()}
 
     if strategy == "actual":
@@ -108,3 +115,34 @@ def choose(
         candidate_raw=raw,
         candidate_stored=stored,
     )
+
+
+def _build_tiled(
+    cur: np.ndarray,
+    prev: np.ndarray,
+    strategy: str,
+    opts: ModeOptions,
+    use_entropy: bool,
+) -> bytes:
+    """Choose a mode independently for each tile, using the frame-level criterion.
+
+    Tiling lives here rather than in ``src.modes.tiled`` because picking well means ranking
+    candidates *after* the entropy stage, and a mode module has no business reaching into
+    it. ``tiled.encode`` keeps a simpler standalone path that ranks on payload size.
+
+    Each tile is chosen by the same rule as a whole frame, one level down. There is no
+    recursion: ``TILEABLE`` excludes TILED itself.
+    """
+    rows, cols = tiled.grid_dims(cur.shape, opts.grid)
+    parts: list[tuple[int, bytes]] = []
+    for y0, y1, x0, x1 in tiled.tiles(cur.shape, rows, cols):
+        tile = choose(
+            np.ascontiguousarray(cur[y0:y1, x0:x1]),
+            np.ascontiguousarray(prev[y0:y1, x0:x1]),
+            strategy=strategy,
+            enabled=TILEABLE,
+            opts=opts,
+            use_entropy=use_entropy,
+        )
+        parts.append((tile.frame_type, tile.payload))
+    return tiled.pack(rows, cols, parts)
