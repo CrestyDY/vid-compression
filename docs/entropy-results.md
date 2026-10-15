@@ -76,11 +76,27 @@ End to end, lossless throughout:
 | --- | ---: | ---: | ---: | --- |
 | screen | 2,268 | **2,024** | **1.12x** | 8.3s → 158.1s |
 | cut | 231,630 | **231,234** | 1.002x | 4.1s → 234.1s |
+| slide | 382,552 | **374,089** | **1.02x** | 22.6s → 373.4s |
+| mixed | 205,814 | *not measured* | — | — |
+| noise | 7,223,174 | *not measured* | — | — |
 
 `screen`'s 1.12x is larger than the payload table suggests it should be, and that is the
 point: per-payload choice beats either codec used alone. On the clip where the range coder
 was 2.13x *worse* overall, selecting per payload still found 10.8%. It also puts `screen`
 back ahead of the reference implementation, at 2,024 against 2,267.
+
+> **Two rows are missing on purpose.** `mixed` and `noise` were not measured end to end,
+> because at 130–180 KB/s the arithmetic coder needs tens of minutes per clip and `noise` is
+> the largest. The payload-level table above covers them (`noise` 0.95x, `mixed` 0.99x), and
+> `noise` is the clip where the coder does best, so `auto` should gain a little more there
+> than on `slide`. Reproduce with:
+>
+> ```
+> uv run vidc encode bench/clips/noise.mp4 out.myv --entropy auto
+> ```
+>
+> Nothing depends on those two numbers — the conclusion below rests on the payload-level
+> measurement and the three clips that were measured.
 
 ## Honest accounting
 
