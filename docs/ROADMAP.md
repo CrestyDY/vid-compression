@@ -85,8 +85,15 @@ direction is known, with one correction already made to it:
    described by one vector, so it pays a full residual. Three independent findings point
    here: no single block size serves both block-modes and motion, no single grid serves all
    content, and residuals are 97–99% of the `MOTION` payload on every clip.
-3. **A real entropy coder.** Once payloads are intra-predicted their symbol distributions are
-   strongly non-uniform — what a context-modelled range coder exploits and zstd cannot.
+3. ~~**A real entropy coder.**~~ **Built, and mostly a negative result** ([results](entropy-results.md)).
+   A context-modelled arithmetic coder is **0.98x** against zstd on this codec's real
+   payloads — not the tens of percent the FFV1 gap implied. The reason is that LZ and
+   context modelling win on different structure: one `BLOCK_DELTA` payload is 90% zeros
+   with a 705-byte run, which zstd codes in 84 bytes and the arithmetic coder in 257.
+   What came out of it is an `auto` stage that prices both per payload and keeps the
+   smaller — 1.12x on `screen`. What FFV1 actually has and this does not is **2D
+   gradient contexts** and **an explicit run mode**; those are the real next steps, and
+   the run mode is worth more.
 4. **Sub-pixel motion compensation.** Worth measuring only *after* item 1: at 2.3% exact
    block matches on real footage, the residual may be dither-limited rather than
    prediction-limited.

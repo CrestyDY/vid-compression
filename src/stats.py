@@ -19,7 +19,7 @@ def render(stats: CodecStats) -> str:
     add(f"  source file        {human_bytes(stats.source_bytes):>12}")
     add(f"  raw frames         {human_bytes(stats.raw_frame_bytes):>12}")
     add(f"  payloads           {human_bytes(stats.raw_bytes):>12}   (before entropy)")
-    stage = "zstd" if stats.entropy_enabled else "no entropy stage"
+    stage = stats.entropy_codec if stats.entropy_enabled else "no entropy stage"
     add(f"  payloads stored    {human_bytes(stats.stored_bytes):>12}   ({stage})")
     add(f"  container overhead {human_bytes(stats.container_bytes):>12}")
     add(f"  total on disk      {human_bytes(stats.total_bytes):>12}")

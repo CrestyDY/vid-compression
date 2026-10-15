@@ -29,6 +29,10 @@ class Header(BaseModel):
     pix_fmt: PixelFormat = RGB24
     #: Whether frame payloads are entropy-coded. Stored as a header flag bit.
     entropy: bool = True
+    #: Which entropy codec was used. Stored in the header's reserved byte, so
+    #: adding it needed no format version bump: a reader that ignores reserved
+    #: assumes "zstd", which is id 0 and therefore what every older file is.
+    entropy_codec: str = "zstd"
 
     @property
     def fps(self) -> float:

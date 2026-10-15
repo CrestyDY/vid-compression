@@ -11,7 +11,7 @@ would still have to decode from frame 0 — an index would cost bytes and buy no
       version      1
       pix_fmt      1   see src.models.pixel_format
       flags        1   bit0 = payloads are entropy-coded
-      reserved     1
+      codec        1   entropy codec id; see src.utils.entropy
       width        4
       height       4
       fps_num      4
@@ -37,6 +37,7 @@ from pydantic import ValidationError
 from src.models.frame import Frame, FrameType
 from src.models.header import Header
 from src.models.pixel_format import by_id
+from src.utils import entropy as entropy_stage
 from src.utils.errors import BadMyvFile
 
 MAGIC = b"MYV1"
@@ -60,7 +61,7 @@ def pack_header(header: Header) -> bytes:
         VERSION,
         header.pix_fmt.id,
         _FLAG_ENTROPY if header.entropy else 0,
-        0,  # reserved
+        entropy_stage.codec_id(header.entropy_codec),
         header.width,
         header.height,
         header.fps_num,
@@ -72,7 +73,7 @@ def pack_header(header: Header) -> bytes:
 def unpack_header(data: bytes) -> Header:
     if len(data) < HEADER_SIZE:
         raise BadMyvFile(f"header is too short: {len(data)} of {HEADER_SIZE} bytes")
-    magic, version, fmt_id, flags, _res, w, h, num, den, count = _HEADER.unpack(
+    magic, version, fmt_id, flags, codec, w, h, num, den, count = _HEADER.unpack(
         data[:HEADER_SIZE]
     )
     if magic != MAGIC:
@@ -86,9 +87,14 @@ def unpack_header(data: bytes) -> Header:
     except ValueError as exc:
         raise BadMyvFile(str(exc)) from None
     try:
+        codec_name = entropy_stage.codec_name(codec)
+    except ValueError as exc:
+        raise BadMyvFile(str(exc)) from None
+    try:
         return Header(
             width=w, height=h, fps_num=num, fps_den=den, frame_count=count,
             pix_fmt=pix_fmt, entropy=bool(flags & _FLAG_ENTROPY),
+            entropy_codec=codec_name,
         )
     except ValidationError as exc:
         # A zeroed dimension or frame rate is a corrupt file, not a programming error, so

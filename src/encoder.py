@@ -34,6 +34,7 @@ def encode(
     dst: str | Path,
     *,
     use_entropy: bool = True,
+    entropy_codec: str = "zstd",
     selection: str = "trial",
     enabled_modes: frozenset[FrameType] | None = None,
     opts: ModeOptions = DEFAULT_OPTIONS,
@@ -48,6 +49,11 @@ def encode(
     in isolation.
     """
     src, dst = Path(src), Path(dst)
+    if entropy_codec not in entropy.CODECS:
+        raise ValueError(
+            f"unknown entropy codec {entropy_codec!r}; pick one of "
+            f"{entropy.CODECS}"
+        )
     if selection not in STRATEGIES:
         raise ValueError(f"unknown selection strategy {selection!r}; pick one of {STRATEGIES}")
     info = ffmpeg.probe(src)
@@ -60,6 +66,7 @@ def encode(
         frame_count=0,  # back-patched on close
         pix_fmt=pix_fmt,
         entropy=use_entropy,
+        entropy_codec=entropy_codec,
     )
 
     stats = CodecStats(
@@ -68,6 +75,7 @@ def encode(
         fps=info.fps,
         source_bytes=src.stat().st_size,
         entropy_enabled=use_entropy,
+        entropy_codec=entropy_codec,
         container_bytes=HEADER_SIZE,
         selection=selection,
         block_size=opts.block_size,
@@ -83,7 +91,7 @@ def encode(
     try:
         _write(
             src, partial, header, stats, info, pix_fmt, use_entropy,
-            selection, enabled_modes, opts, progress,
+            entropy_codec, selection, enabled_modes, opts, progress,
         )
     except BaseException:
         partial.unlink(missing_ok=True)
@@ -101,6 +109,7 @@ def _write(
     info,
     pix_fmt: PixelFormat,
     use_entropy: bool,
+    entropy_codec: str,
     selection: str,
     enabled_modes: frozenset[FrameType] | None,
     opts: ModeOptions,
@@ -117,8 +126,11 @@ def _write(
                     enabled=enabled_modes,
                     opts=opts,
                     use_entropy=use_entropy,
+                    entropy_codec=entropy_codec,
                 )
-                stored = entropy.compress(pick.payload, enabled=use_entropy)
+                stored = entropy.compress(
+                    pick.payload, enabled=use_entropy, codec=entropy_codec
+                )
                 writer.frame(pick.frame_type, stored)
 
                 changed = None

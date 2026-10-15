@@ -10,6 +10,7 @@
 
   strategy, and the baseline every later milestone is compared against.
 
+- **[entropy-results.md](entropy-results.md)** — a context-modelled arithmetic coder. Mostly a negative result, and what came out of it instead.
 - **[m8-results.md](m8-results.md)** — intra prediction. 1.53x on `cut`, and byte-exact agreement with the reference on all five `FULL` frames.
 - **[m5-results.md](m5-results.md)** — `TILED`. Per-region mode choice: 1.16x on `mixed`, and `screen` overtakes the reference.
 - **[m4-results.md](m4-results.md)** — `MOTION`. 4.27x on translation, and the measured proof that one block size cannot serve two modes.

@@ -116,7 +116,7 @@ def test_ties_prefer_full(solid_frame, monkeypatch):
     import src.selector as sel
 
     monkeypatch.setattr(
-        sel.entropy, "compress", lambda payload, *, enabled: b"x" * 10
+        sel.entropy, "compress", lambda payload, *, enabled, codec="zstd": b"x" * 10
     )
     pick = choose(solid_frame(), solid_frame(), strategy="trial")
     assert pick.frame_type is FrameType.FULL

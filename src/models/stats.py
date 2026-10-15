@@ -18,6 +18,7 @@ class CodecStats(BaseModel):
     fps: float
     source_bytes: int
     entropy_enabled: bool
+    entropy_codec: str = "zstd"
     #: Header plus per-frame record overhead, so the report matches the file on disk.
     container_bytes: int = 0
 
