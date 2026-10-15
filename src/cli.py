@@ -51,7 +51,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     enc.add_argument(
         "--block-size", type=int, default=16,
-        help="grid cell side length for BLOCK_DELTA (default: 16)",
+        help="grid cell side length for BLOCK_DELTA and MOTION (default: 16)",
+    )
+    enc.add_argument(
+        "--search-range", type=int, default=7,
+        help="how far MOTION looks for a match, in pixels (default: 7)",
     )
 
     dec = sub.add_parser("decode", help=".myv -> MP4, for sharing or archiving")
@@ -87,7 +91,10 @@ def main(argv: list[str] | None = None) -> int:
                 use_entropy=not args.no_entropy,
                 selection=args.selection,
                 enabled_modes=_parse_modes(args.modes),
-                opts=ModeOptions(block_size=args.block_size),
+                opts=ModeOptions(
+                    block_size=args.block_size,
+                    search_range=args.search_range,
+                ),
             )
             print(f"{args.src} -> {args.dst}")
             print(stats_report.render(result))

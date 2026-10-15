@@ -20,16 +20,19 @@ decoder never has to be configured to match an encoder.
 from __future__ import annotations
 
 from src.models.frame import FrameType
-from src.modes import block_delta, full, pixel_delta
+from src.modes import block_delta, full, motion, pixel_delta
 
 MODES = {
     FrameType.FULL: full,
     FrameType.PIXEL_DELTA: pixel_delta,
     FrameType.BLOCK_DELTA: block_delta,
+    FrameType.MOTION: motion,
 }
 
 #: Modes that reconstruct from a reference frame, so are unavailable for frame 0.
-PREDICTED = frozenset({FrameType.PIXEL_DELTA, FrameType.BLOCK_DELTA})
+PREDICTED = frozenset(
+    {FrameType.PIXEL_DELTA, FrameType.BLOCK_DELTA, FrameType.MOTION}
+)
 
 __all__ = [
     "MODES",
@@ -37,5 +40,6 @@ __all__ = [
     "FrameType",
     "block_delta",
     "full",
+    "motion",
     "pixel_delta",
 ]

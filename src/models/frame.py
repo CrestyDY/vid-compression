@@ -15,7 +15,8 @@ class FrameType(IntEnum):
     FULL = 0
     PIXEL_DELTA = 1
     BLOCK_DELTA = 2
-    # 3 reserved for MOTION (M4), 4 for TILED (M5)
+    MOTION = 3
+    # 4 reserved for TILED (M5)
 
 
 class Frame(BaseModel):
