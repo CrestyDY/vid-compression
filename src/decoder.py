@@ -61,7 +61,10 @@ def _reconstruct(reader: MyvReader) -> Iterator[np.ndarray]:
                 f"predict from; the file must start with a FULL frame"
             )
         try:
-            payload = entropy.decompress(record.payload, enabled=header.entropy)
+            payload = entropy.decompress(
+                record.payload, enabled=header.entropy,
+                codec=header.entropy_codec,
+            )
         except CorruptPayload as exc:
             raise BadMyvFile(
                 f"frame {index} ({record.type.name}): payload could not be "

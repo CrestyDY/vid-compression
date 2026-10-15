@@ -73,6 +73,7 @@ def choose(
     enabled: frozenset[FrameType] | None = None,
     opts: ModeOptions = DEFAULT_OPTIONS,
     use_entropy: bool = True,
+    entropy_codec: str = "zstd",
 ) -> Choice:
     """Pick the cheapest representation of ``cur`` given ``prev``."""
     if strategy not in STRATEGIES:
@@ -91,7 +92,7 @@ def choose(
 
     payloads = {
         ft: (
-            _build_tiled(cur, prev, strategy, opts, use_entropy)
+            _build_tiled(cur, prev, strategy, opts, use_entropy, entropy_codec)
             if ft is FrameType.TILED
             else MODES[ft].encode(cur, prev, opts)
         )
@@ -106,7 +107,8 @@ def choose(
         return Choice(frame_type=winner, payload=payloads[winner], candidate_raw=raw)
 
     stored = {
-        ft: len(entropy.compress(p, enabled=use_entropy)) for ft, p in payloads.items()
+        ft: len(entropy.compress(p, enabled=use_entropy, codec=entropy_codec))
+        for ft, p in payloads.items()
     }
     winner = min(available, key=lambda ft: (stored[ft], int(ft)))
     return Choice(
@@ -123,6 +125,7 @@ def _build_tiled(
     strategy: str,
     opts: ModeOptions,
     use_entropy: bool,
+    entropy_codec: str = "zstd",
 ) -> bytes:
     """Choose a mode independently for each tile, using the frame-level criterion.
 
@@ -143,6 +146,7 @@ def _build_tiled(
             enabled=TILEABLE,
             opts=opts,
             use_entropy=use_entropy,
+            entropy_codec=entropy_codec,
         )
         parts.append((tile.frame_type, tile.payload))
     return tiled.pack(rows, cols, parts)

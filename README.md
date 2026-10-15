@@ -42,10 +42,16 @@ whose weakness it addresses while leaving the others alone:
 | [M5](docs/m5-results.md) | `TILED` | `mixed` 1.16x |
 | [M8](docs/m8-results.md) | intra prediction | `cut` 1.53x — one frame went from 123,806 bytes to **71** |
 
-On `screen` and `slide` this now matches or beats a complete reference implementation of the
-same design. The remaining size gap on the other three is **intra prediction** (M8), which
-M1 priced at ~250 KB across the five clips; the remaining problem is **encode time**, now 38s
-for 60 frames of `noise`, which M6 and M9 exist to attack.
+On all five benchmark clips this now matches or beats a complete reference implementation of
+the same design. Against **lossless H.264** it ranges from 1.98x smaller (`screen`) to 1.41x
+larger (`cut`); against a *lossy* source MP4 it is far larger, which is the honest gap between
+preservation and delivery.
+
+A context-modelled arithmetic coder was then built to close the remaining gap against FFV1 —
+and [mostly did not work](docs/entropy-results.md), at 0.98x against zstd. The reason is worth
+reading: LZ and context modelling win on different structure, and what came out of it is an
+`--entropy auto` stage that prices both per payload. The remaining problem is **encode time**,
+now 38s for 60 frames of `noise`, which M6 and M9 exist to attack.
 
 Where this is going next is [docs/ROADMAP.md](docs/ROADMAP.md) — eleven milestones, each a
 response to a weakness the previous one's numbers exposed.
@@ -84,7 +90,8 @@ frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--lo
 
 | flag | effect |
 | --- | --- |
-| `encode --no-entropy` | skip the final zstd stage, to see what the representation alone costs |
+| `encode --no-entropy` | skip the entropy stage entirely, to see what the representation alone costs |
+| `encode --entropy zstd\|range\|auto` | entropy codec; `auto` prices both per payload ([why](docs/entropy-results.md)) |
 | `encode --selection fixed\|actual\|trial` | how modes are ranked (default `trial`, see [why](docs/m2-results.md)) |
 | `encode --modes FULL,PIXEL_DELTA` | restrict the candidate set, to measure one mode alone |
 | `encode --block-size N` | block size for BLOCK_DELTA and MOTION (default 16) |
@@ -117,7 +124,8 @@ src/
   modes/            one module per encoding mode, each a pure encode/decode/cost triple
   utils/            plumbing that knows nothing about video compression
     ffmpeg.py       MP4 <-> numpy frames, over subprocess pipes
-    entropy.py      the zstd stage
+    entropy.py      the entropy stage: zstd, an arithmetic coder, or both
+    rangecoder.py   a context-modelled binary arithmetic coder
     sizes.py        human-readable byte counts
     errors.py       shared exceptions
 ```

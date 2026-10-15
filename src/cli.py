@@ -13,7 +13,7 @@ from src.models.frame import FrameType
 from src.models.options import ModeOptions
 from src.player import play as play_myv
 from src.selector import STRATEGIES
-from src.utils import ffmpeg
+from src.utils import entropy, ffmpeg
 from src.utils.errors import BadMyvFile, FFmpegError
 from src.utils.sizes import human_bytes
 from src.verify import verify as verify_files
@@ -40,7 +40,13 @@ def _build_parser() -> argparse.ArgumentParser:
     enc = sub.add_parser("encode", help="MP4 -> .myv, printing a size report")
     enc.add_argument("src", type=Path)
     enc.add_argument("dst", type=Path)
-    enc.add_argument("--no-entropy", action="store_true", help="skip the final zstd stage")
+    enc.add_argument(
+        "--no-entropy", action="store_true", help="skip the entropy stage entirely"
+    )
+    enc.add_argument(
+        "--entropy", choices=entropy.CODECS, default="zstd",
+        help="entropy codec: zstd, range, or auto to price both (default: zstd)",
+    )
     enc.add_argument(
         "--selection", choices=STRATEGIES, default="trial",
         help="how modes are ranked (default: trial)",
@@ -90,9 +96,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "encode":
+            if args.entropy != "zstd":
+                print(
+                    f"  note: the {args.entropy!r} entropy stage is an arithmetic coder "
+                    f"written in Python. It is correct but roughly 20-60x slower "
+                    f"than zstd; see docs/entropy-results.md.",
+                    file=sys.stderr,
+                )
             result = encode_file(
                 args.src, args.dst,
                 use_entropy=not args.no_entropy,
+                entropy_codec=args.entropy,
                 selection=args.selection,
                 enabled_modes=_parse_modes(args.modes),
                 opts=ModeOptions(
@@ -130,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {args.src}")
             print(f"  {header.width}x{header.height} @ {header.fps:.2f} fps")
             print(f"  {header.frame_count} frames, {header.pix_fmt.name}")
-            print(f"  entropy coded: {header.entropy}")
+            print(f"  entropy coded: {header.entropy} ({header.entropy_codec})")
             print(f"  on disk: {human_bytes(size)}")
             return 0
 
