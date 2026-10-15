@@ -13,24 +13,37 @@ Reconstruction is **lossless** at every milestone: every decoded frame is byte-i
 the ffmpeg-decoded source frame. That is the invariant — a change that improves size but
 breaks it has failed.
 
-### Current status — M3
+### Current status — M5
 
-Two competing representations, and an encoder that prices both on every frame and keeps the
-smaller one.
+Five competing representations. For every frame the encoder prices all of them and keeps the
+smallest.
 
 | mode | describes a frame as | wins when |
 | --- | --- | --- |
 | `FULL` | the raw pixels | almost everything changed, or nothing predicts well |
 | `PIXEL_DELTA` | `(x, y, ΔR, ΔG, ΔB)` per changed pixel | changes are sparse and scattered |
+| `BLOCK_DELTA` | whole changed blocks, no coordinates | changes cluster into regions |
+| `MOTION` | `(dx, dy)` per block + residual | content moved rather than changed |
+| `TILED` | an N×N grid, each tile choosing its own mode | different regions want different answers |
 
-On the five benchmark clips this ranges from **3206x smaller than raw** (`screen`, a static
-UI) to **1.13x** (`noise`, where nearly every pixel changes every frame).
+On the five benchmark clips this ranges from **6359x smaller than raw** (`screen`, a static
+UI) to **1.78x** (`noise`, where nearly every pixel changes every frame). Reconstruction is
+lossless in every case, verified per clip and per mode.
 
-Selection is worth **2.81x on scene cuts** — and it finds the cuts without being told what a
-cut is, by pricing both representations and keeping the cheaper one. It also fixed M1's worst
-result, where `noise` produced a file *larger* than the raw frames: the answer turned out to
-be `FULL` on all 60 frames, a mode that already existed and was never being asked about. The
-numbers are in [docs/m2-results.md](docs/m2-results.md).
+Each milestone answers a weakness the previous one's numbers exposed, and helps the clips
+whose weakness it addresses while leaving the others alone:
+
+| milestone | what it added | the clip it rescued |
+| --- | --- | --- |
+| [M2](docs/m2-results.md) | price every mode per frame | `cut` 2.81x — and it finds scene cuts without knowing what one is |
+| [M3](docs/m3-results.md) | `BLOCK_DELTA` | four clips 1.57–1.90x, by dropping per-pixel coordinates |
+| [M4](docs/m4-results.md) | `MOTION` | `slide` 4.27x |
+| [M5](docs/m5-results.md) | `TILED` | `mixed` 1.16x |
+
+On `screen` and `slide` this now matches or beats a complete reference implementation of the
+same design. The remaining size gap on the other three is **intra prediction** (M8), which
+M1 priced at ~250 KB across the five clips; the remaining problem is **encode time**, now 38s
+for 60 frames of `noise`, which M6 and M9 exist to attack.
 
 Where this is going next is [docs/ROADMAP.md](docs/ROADMAP.md) — eleven milestones, each a
 response to a weakness the previous one's numbers exposed.
@@ -74,6 +87,7 @@ frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--lo
 | `encode --modes FULL,PIXEL_DELTA` | restrict the candidate set, to measure one mode alone |
 | `encode --block-size N` | block size for BLOCK_DELTA and MOTION (default 16) |
 | `encode --search-range N` | how far MOTION looks for a match (default 7) |
+| `encode --grid N` | TILED subdivision, N×N tiles (default 4) |
 | `decode --lossless` | export with `libx264rgb -qp 0` instead of a watchable re-encode |
 | `play --speed 4 --width 480` | play at 4x in a 480px-wide window |
 

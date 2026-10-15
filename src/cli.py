@@ -57,6 +57,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--search-range", type=int, default=7,
         help="how far MOTION looks for a match, in pixels (default: 7)",
     )
+    enc.add_argument(
+        "--grid", type=int, default=4,
+        help="TILED subdivision, N means an NxN arrangement of tiles (default: 4)",
+    )
 
     dec = sub.add_parser("decode", help=".myv -> MP4, for sharing or archiving")
     dec.add_argument("src", type=Path)
@@ -94,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
                 opts=ModeOptions(
                     block_size=args.block_size,
                     search_range=args.search_range,
+                    grid=args.grid,
                 ),
             )
             print(f"{args.src} -> {args.dst}")
