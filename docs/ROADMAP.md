@@ -34,7 +34,7 @@ the point — the measurements are what motivate the next piece of work.
 | ~~**M1**~~ | ~~V2 codec~~ | `FULL` + `PIXEL_DELTA`, container, encoder/decoder, `verify`, CLI | **done** — [results](m1-results.md) |
 | ~~**M2**~~ | ~~V3 selection~~ | price every mode per frame, keep the smallest | **done — 2.81x on `cut`**, and `noise` no longer exceeds raw ([results](m2-results.md)) |
 | **M3** | V4 `BLOCK_DELTA` | whole changed blocks, no per-pixel coordinates | up to 2.4x (`slide` 2.76 MB → 1.56 MB) |
-| **M4** | V5 `MOTION` | block matching + residuals | 4.3x on moving content (`slide` → 372 KB) |
+| ~~**M4**~~ | ~~V5 `MOTION`~~ | block matching + residuals | **done — 4.27x on `slide`**, within 0.4% of the full reference ([results](m4-results.md)) |
 | **M5** | V6 `TILED` | an N×N grid, each tile choosing its own mode | 1.1x on varied content (`mixed` → 206 KB) |
 | **M6** | V7 predictor | learned mode prediction instead of trial encoding | 1.4–12x faster encode, some size cost |
 | **M7** | Keyframes | forced `FULL` every N frames + a seek index | seeking bounded by interval, not position |

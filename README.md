@@ -72,7 +72,8 @@ frame looks wrong. It takes `--start`, `--count`, `--speed`, `--width` and `--lo
 | `encode --no-entropy` | skip the final zstd stage, to see what the representation alone costs |
 | `encode --selection fixed\|actual\|trial` | how modes are ranked (default `trial`, see [why](docs/m2-results.md)) |
 | `encode --modes FULL,PIXEL_DELTA` | restrict the candidate set, to measure one mode alone |
-| `encode --block-size N` | block size for BLOCK_DELTA (default 16; 32 is 1-9% better) |
+| `encode --block-size N` | block size for BLOCK_DELTA and MOTION (default 16) |
+| `encode --search-range N` | how far MOTION looks for a match (default 7) |
 | `decode --lossless` | export with `libx264rgb -qp 0` instead of a watchable re-encode |
 | `play --speed 4 --width 480` | play at 4x in a 480px-wide window |
 
