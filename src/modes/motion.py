@@ -10,6 +10,7 @@ Motion compensation is the fix, and it is the single biggest idea in real video 
 Payload::
 
     block_size : uint8    self-describing, as with BLOCK_DELTA
+    filter     : uint8    intra filter applied to every residual (see src.transform)
     count      : uint32   number of block records
     then count records:
         index    : uint32  block number, row-major across the grid
@@ -52,10 +53,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from src import transform
 from src.models.options import DEFAULT_OPTIONS
 
 MAX_BLOCKS = 0xFFFFFFFF
-_HEADER = 5   # block_size (1) + count (4)
+_HEADER = 6   # block_size (1) + intra filter (1) + count (4)
 _RECORD = 7   # index (4) + dx (1) + dy (1) + flags (1)
 _INDEX = 4
 _FLAG_RESIDUAL = 0b1
@@ -166,6 +168,36 @@ def _search(
     return best_dy, best_dx
 
 
+def _choose_filter(
+    cur: np.ndarray,
+    prev: np.ndarray,
+    dy_grid: np.ndarray,
+    dx_grid: np.ndarray,
+    changed: np.ndarray,
+    block_size: int,
+    cols: int,
+) -> transform.Filter:
+    """Pick one intra filter for every residual in the frame.
+
+    The filter has to be chosen from what will actually be *written* - the motion-compensated
+    residuals - not from the frame. Predicting from the frame would pick a filter for a
+    signal this mode never stores.
+
+    Assembling the residual plane means walking the blocks once more, which is cheap next to
+    the search that just ran.
+    """
+    plane = np.zeros_like(cur)
+    rows = (cur.shape[0] + block_size - 1) // block_size
+    for index in range(rows * cols):
+        y0, y1, x0, x1 = _extent(index, cur.shape, block_size, cols)
+        if not changed[y0:y1, x0:x1].any():
+            continue
+        by, bx = divmod(index, cols)
+        predicted = _fetch(prev, y0, y1, x0, x1, int(dy_grid[by, bx]), int(dx_grid[by, bx]))
+        plane[y0:y1, x0:x1] = cur[y0:y1, x0:x1] - predicted
+    return transform.choose(plane)
+
+
 def encode(cur: np.ndarray, prev: np.ndarray | None, opts=None) -> bytes:
     if prev is None:
         raise ValueError("MOTION needs a reference frame to predict from")
@@ -180,8 +212,13 @@ def encode(cur: np.ndarray, prev: np.ndarray | None, opts=None) -> bytes:
     dy_grid, dx_grid = _search(cur, prev, block_size, search_range)
     changed = np.any(cur != prev, axis=2)
 
+    # One intra filter for every residual in the frame, chosen from the residual plane as
+    # a whole. A motion residual is already low-amplitude, so de-interleaving usually wins
+    # over spatial prediction - but the chooser decides.
+    filter_id = _choose_filter(cur, prev, dy_grid, dx_grid, changed, block_size, cols)
+
     out = bytearray()
-    out += bytes([block_size])
+    out += bytes([block_size, int(filter_id)])
     records = bytearray()
     written = 0
 
@@ -201,7 +238,7 @@ def encode(cur: np.ndarray, prev: np.ndarray | None, opts=None) -> bytes:
         records += int(dx).to_bytes(1, "little", signed=True)
         records += bytes([_FLAG_RESIDUAL if has_residual else 0])
         if has_residual:
-            records += np.ascontiguousarray(residual).tobytes()
+            records += transform.apply(residual, filter_id)
         written += 1
 
     out += int(written).to_bytes(4, "little")
@@ -211,11 +248,12 @@ def encode(cur: np.ndarray, prev: np.ndarray | None, opts=None) -> bytes:
 
 def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> np.ndarray:
     if len(payload) < _HEADER:
-        raise ValueError(f"MOTION payload is {len(payload)} bytes; needs at least 5")
+        raise ValueError(f"MOTION payload is {len(payload)} bytes; needs at least 6")
     block_size = payload[0]
     if block_size == 0:
         raise ValueError("MOTION block_size is 0")
-    n = int.from_bytes(payload[1:_HEADER], "little")
+    filter_id = payload[1]
+    n = int.from_bytes(payload[2:_HEADER], "little")
     if prev is None:
         raise ValueError("MOTION needs a reference frame to reconstruct against")
 
@@ -245,9 +283,10 @@ def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> n
             nbytes = (y1 - y0) * (x1 - x0) * shape[2]
             if offset + nbytes > len(payload):
                 raise ValueError(f"MOTION truncated inside record {record} of {n}")
-            residual = np.frombuffer(
-                payload, dtype=np.uint8, count=nbytes, offset=offset
-            ).reshape(y1 - y0, x1 - x0, shape[2])
+            residual = transform.invert(
+                payload[offset : offset + nbytes], filter_id,
+                (y1 - y0, x1 - x0, shape[2]),
+            )
             offset += nbytes
             block = block + residual  # uint8 wraps, undoing the subtraction exactly
 
@@ -263,8 +302,8 @@ def decode(payload: bytes, prev: np.ndarray | None, shape: tuple[int, ...]) -> n
 def count(payload: bytes) -> int:
     """How many block records this payload holds."""
     if len(payload) < _HEADER:
-        raise ValueError(f"MOTION payload is {len(payload)} bytes; needs at least 5")
-    return int.from_bytes(payload[1:_HEADER], "little")
+        raise ValueError(f"MOTION payload is {len(payload)} bytes; needs at least 6")
+    return int.from_bytes(payload[2:_HEADER], "little")
 
 
 def block_size_of(payload: bytes) -> int:

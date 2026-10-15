@@ -10,6 +10,7 @@
 
   strategy, and the baseline every later milestone is compared against.
 
+- **[m8-results.md](m8-results.md)** — intra prediction. 1.53x on `cut`, and byte-exact agreement with the reference on all five `FULL` frames.
 - **[m5-results.md](m5-results.md)** — `TILED`. Per-region mode choice: 1.16x on `mixed`, and `screen` overtakes the reference.
 - **[m4-results.md](m4-results.md)** — `MOTION`. 4.27x on translation, and the measured proof that one block size cannot serve two modes.
 
@@ -51,19 +52,19 @@ lossless throughout.
 
 
 
-| clip | what it is | M1 | M3 | M4 | M5 | vs raw |
+| clip | what it is | M1 | M3 | M4 | M5 | M8 | vs raw |
 
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 
-| screen | static UI, sparse edits | 4.21 KB | 2.28 KB | 2.27 KB | **2.12 KB** | 6359x |
+| screen | static UI, sparse edits | 4.21 KB | 2.28 KB | 2.27 KB | 2.12 KB | **2.21 KB** | 5936x |
 
-| cut | three scenes, two hard cuts | 973.75 KB | 347.01 KB | 347.01 KB | **347.01 KB** | 38.90x |
+| cut | three scenes, two hard cuts | 973.75 KB | 347.01 KB | 347.01 KB | 347.01 KB | **226.20 KB** | 59.68x |
 
-| slide | textured box translating | 2.76 MB | 1.56 MB | 373.54 KB | **373.54 KB** | 36.14x |
+| slide | textured box translating | 2.76 MB | 1.56 MB | 373.54 KB | 373.54 KB | **373.59 KB** | 36.14x |
 
-| noise | moving gradient + grain | 18.06 MB | 7.44 MB | 7.40 MB | **7.39 MB** | 1.78x |
+| noise | moving gradient + grain | 18.06 MB | 7.44 MB | 7.40 MB | 7.39 MB | **6.89 MB** | 1.91x |
 
-| mixed | four quadrants, four behaviours | 760.69 KB | 400.90 KB | 288.47 KB | **247.82 KB** | 54.47x |
+| mixed | four quadrants, four behaviours | 760.69 KB | 400.90 KB | 288.47 KB | 247.82 KB | **200.99 KB** | 67.17x |
 
 
 

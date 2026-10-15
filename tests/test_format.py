@@ -80,3 +80,18 @@ def test_reader_rejects_a_truncated_payload():
 def test_entropy_flag_survives_the_round_trip():
     assert unpack_header(pack_header(a_header(entropy=False))).entropy is False
     assert unpack_header(pack_header(a_header(entropy=True))).entropy is True
+
+
+def test_unpack_rejects_an_older_format_version():
+    """M8 added an intra filter byte to three payloads, so v1 files cannot be read.
+
+    Rejecting them is the point of the version byte: a v1 payload would otherwise decode
+    with its first data byte misread as a filter id, silently and wrongly.
+    """
+    from src.format import VERSION
+
+    assert VERSION == 2
+    data = bytearray(pack_header(a_header()))
+    data[4] = 1  # the version byte, after the 4-byte magic
+    with pytest.raises(BadMyvFile, match="version 1"):
+        unpack_header(bytes(data))

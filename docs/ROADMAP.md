@@ -38,7 +38,7 @@ the point — the measurements are what motivate the next piece of work.
 | ~~**M5**~~ | ~~V6 `TILED`~~ | an N×N grid, each tile choosing its own mode | **done — 1.16x on `mixed`**, `screen` ahead of the reference ([results](m5-results.md)) |
 | **M6** | V7 predictor | learned mode prediction instead of trial encoding | 1.4–12x faster encode, some size cost |
 | **M7** | Keyframes | forced `FULL` every N frames + a seek index | seeking bounded by interval, not position |
-| **M8** | Intra prediction | de-interleave channels, store spatial differences | **1.51x on real footage** |
+| ~~**M8**~~ | ~~Intra prediction~~ | de-interleave channels, store spatial differences | **done — 1.53x on `cut`**, byte-exact with the reference ([results](m8-results.md)) |
 | **M9** | Coarse-to-fine search | search decimated, refine, propagate vectors | 2–3x faster for ≤0.5% larger |
 | **M10** | MV seeding + player | seed search from source H.264 vectors; direct playback | 5.25x faster search; negligible size |
 
@@ -51,9 +51,18 @@ The reference added intra prediction **last**, and its own notes call it "the bi
 missing" — worth 1.51x on real footage, more than M3, M4 and M5 combined, because it is not
 a mode at all and improves every pixel-carrying payload at once.
 
-It is kept at M8 here deliberately. Moving it earlier would produce a smaller file sooner
-but would obscure *why* each mode exists: M3 is only obviously necessary once M2's numbers
-show what per-pixel coordinates cost. The sequence is the lesson.
+It was kept at M8 here deliberately, on the argument that moving it earlier would produce a
+smaller file sooner but obscure *why* each mode exists: M3 is only obviously necessary once
+M2's numbers show what per-pixel coordinates cost. The sequence is the lesson.
+
+**It was then built out of order anyway, immediately after M5 and ahead of M6 and M7.** The
+reason was a measurement rather than a preference: M5's comparison against FFV1 — a lossless
+codec with *no temporal prediction at all* — found it beating this build 1.81x on real
+footage. That made intra prediction the largest measured deficiency rather than the largest
+estimated one, and the pedagogical argument had already been served by M2–M5's numbers.
+
+The original ordering argument still stands for anyone reading the results documents in
+sequence; M6, M7, M9 and M10 keep their numbering so the sequence stays legible.
 
 ## Beyond M10
 

@@ -40,7 +40,7 @@ from src.models.pixel_format import by_id
 from src.utils.errors import BadMyvFile
 
 MAGIC = b"MYV1"
-VERSION = 1
+VERSION = 2  # M8 added an intra filter byte to FULL, BLOCK_DELTA and MOTION payloads
 
 _HEADER = struct.Struct("<4sBBBBIIIII")
 HEADER_SIZE = _HEADER.size

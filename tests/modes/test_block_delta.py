@@ -60,7 +60,7 @@ def test_an_unchanged_frame_stores_no_blocks(solid_frame):
     frame = solid_frame()
     payload = block_delta.encode(frame, frame, opts(8))
     assert block_delta.count(payload) == 0
-    assert len(payload) == 5  # block_size + uint32 count
+    assert len(payload) == 6  # block_size + intra filter + uint32 count
     assert np.array_equal(block_delta.decode(payload, frame, frame.shape), frame)
 
 
@@ -121,19 +121,19 @@ def test_encode_rejects_a_shape_mismatch(solid_frame):
 def test_decode_rejects_a_zero_block_size(solid_frame):
     frame = solid_frame()
     with pytest.raises(ValueError, match="block_size is 0"):
-        block_delta.decode(b"\x00" + (0).to_bytes(4, "little"), frame, frame.shape)
+        block_delta.decode(b"\x00\x00" + (0).to_bytes(4, "little"), frame, frame.shape)
 
 
 def test_decode_rejects_a_block_index_past_the_grid(solid_frame):
     frame = solid_frame(height=16, width=16)
-    payload = bytes([16]) + (1).to_bytes(4, "little") + (99).to_bytes(4, "little")
+    payload = bytes([16, 0]) + (1).to_bytes(4, "little") + (99).to_bytes(4, "little")
     with pytest.raises(ValueError, match="only has"):
         block_delta.decode(payload, frame, frame.shape)
 
 
 def test_decode_rejects_a_truncated_record(solid_frame):
     frame = solid_frame(height=16, width=16)
-    payload = bytes([16]) + (1).to_bytes(4, "little") + (0).to_bytes(4, "little") + b"\x00"
+    payload = bytes([16, 0]) + (1).to_bytes(4, "little") + (0).to_bytes(4, "little") + b"\x00"
     with pytest.raises(ValueError, match="truncated"):
         block_delta.decode(payload, frame, frame.shape)
 
