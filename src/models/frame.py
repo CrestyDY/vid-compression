@@ -17,6 +17,9 @@ class FrameType(IntEnum):
     BLOCK_DELTA = 2
     MOTION = 3
     TILED = 4
+    #: Not a plane mode: a wrapper holding one chosen mode per plane, used only by
+    #: multi-plane pixel formats. See src.modes.planes.
+    PLANES = 5
 
 
 class Frame(BaseModel):

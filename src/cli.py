@@ -9,6 +9,7 @@ from pathlib import Path
 from src import stats as stats_report
 from src.decoder import open_myv, read_header
 from src.encoder import encode as encode_file
+from src.models import pixel_format
 from src.models.frame import FrameType
 from src.models.options import ModeOptions
 from src.player import play as play_myv
@@ -67,6 +68,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--grid", type=int, default=4,
         help="TILED subdivision, N means an NxN arrangement of tiles (default: 4)",
     )
+    enc.add_argument(
+        "--pix-fmt", choices=pixel_format.NAMES, default="source",
+        help=(
+            "pixel format to code in; 'source' follows the file's own, which is the only "
+            "choice that does not pay for chroma ffmpeg invented (default: source)"
+        ),
+    )
 
     dec = sub.add_parser("decode", help=".myv -> MP4, for sharing or archiving")
     dec.add_argument("src", type=Path)
@@ -114,7 +122,13 @@ def main(argv: list[str] | None = None) -> int:
                     search_range=args.search_range,
                     grid=args.grid,
                 ),
+                pix_fmt=(
+                    None if args.pix_fmt == "source"
+                    else pixel_format.by_name(args.pix_fmt)
+                ),
             )
+            if result.pix_fmt_note:
+                print(f"  note: {result.pix_fmt_note}", file=sys.stderr)
             print(f"{args.src} -> {args.dst}")
             print(stats_report.render(result))
             return 0

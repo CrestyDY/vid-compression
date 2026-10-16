@@ -22,7 +22,7 @@ def test_round_trip_is_lossless(tmp_path, write_clip, moving_frames, use_entropy
     decoded = decode_to_list(dst)
     assert len(decoded) == len(original)
     for want, got in zip(original, decoded):
-        assert np.array_equal(want, got)
+        assert np.array_equal(want, got[0])
 
 
 @requires_ffmpeg

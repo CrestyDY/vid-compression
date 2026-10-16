@@ -18,14 +18,15 @@ from pathlib import Path
 
 import numpy as np
 
+from src import pixfmt
 from src.format import FRAME_HEADER_SIZE, HEADER_SIZE, MyvWriter
 from src.models.frame import FrameType
 from src.models.header import Header
 from src.models.options import DEFAULT_OPTIONS, ModeOptions
-from src.models.pixel_format import RGB24, PixelFormat
+from src.models.pixel_format import PixelFormat
 from src.models.stats import CodecStats
 from src.modes import pixel_delta
-from src.selector import STRATEGIES, choose
+from src.selector import STRATEGIES, choose_frame
 from src.utils import entropy, ffmpeg
 
 
@@ -38,7 +39,7 @@ def encode(
     selection: str = "trial",
     enabled_modes: frozenset[FrameType] | None = None,
     opts: ModeOptions = DEFAULT_OPTIONS,
-    pix_fmt: PixelFormat = RGB24,
+    pix_fmt: PixelFormat | None = None,
     progress=None,
 ) -> CodecStats:
     """Encode a video file into a .myv, returning the measurements taken along the way.
@@ -47,6 +48,12 @@ def encode(
     behaviour, kept so the improvement from choosing is measurable rather than asserted.
     ``enabled_modes`` restricts the candidate set, which is how a single mode gets measured
     in isolation.
+
+    ``pix_fmt`` defaults to ``None``, meaning *follow the source*. That is the only default
+    that does not quietly cost bytes: asking ffmpeg for RGB from a subsampled source makes
+    it interpolate chroma, and coding the interpolation losslessly is 1.42x larger than
+    coding the samples the file holds (docs/next-lever.md). Passing a format explicitly
+    overrides this, which is how the two can be compared.
     """
     src, dst = Path(src), Path(dst)
     if entropy_codec not in entropy.CODECS:
@@ -57,6 +64,10 @@ def encode(
     if selection not in STRATEGIES:
         raise ValueError(f"unknown selection strategy {selection!r}; pick one of {STRATEGIES}")
     info = ffmpeg.probe(src)
+
+    note = None
+    if pix_fmt is None:
+        pix_fmt, note = pixfmt.for_source(info.pix_fmt)
 
     header = Header(
         width=info.width,
@@ -76,6 +87,9 @@ def encode(
         source_bytes=src.stat().st_size,
         entropy_enabled=use_entropy,
         entropy_codec=entropy_codec,
+        pix_fmt=pix_fmt.name,
+        pix_fmt_note=note,
+        frame_nbytes=pix_fmt.frame_nbytes(info.width, info.height),
         container_bytes=HEADER_SIZE,
         selection=selection,
         block_size=opts.block_size,
@@ -118,9 +132,9 @@ def _write(
     """The streaming encode itself. Separated so the caller owns the atomic rename."""
     with open(dst, "wb") as out, ffmpeg.decode_frames(src, pix_fmt, info) as frames:
         with MyvWriter(out, header) as writer:
-            prev: np.ndarray | None = None
+            prev: tuple[np.ndarray, ...] | None = None
             for index, frame in enumerate(frames):
-                pick = choose(
+                pick = choose_frame(
                     frame, prev,
                     strategy=selection,
                     enabled=enabled_modes,
@@ -138,13 +152,18 @@ def _write(
                     changed = pixel_delta.count(pick.payload)
                 elif prev is not None:
                     # Report the changed-pixel count even when another mode won, so the
-                    # figure stays comparable across strategies and milestones.
-                    changed = int(np.count_nonzero(np.any(frame != prev, axis=2)))
+                    # figure stays comparable across strategies and milestones. Counted on
+                    # plane 0 — luma for a YUV format — because a chroma plane is a
+                    # different size and the two cannot be added up.
+                    changed = int(
+                        np.count_nonzero(np.any(frame[0] != prev[0], axis=2))
+                    )
 
                 stats.record(
                     pick.frame_type, len(pick.payload), len(stored), changed,
                     candidate_raw=pick.candidate_raw,
                     candidate_stored=pick.candidate_stored,
+                    plane_modes=pick.plane_modes,
                 )
                 stats.container_bytes += FRAME_HEADER_SIZE
 

@@ -40,7 +40,12 @@ class Header(BaseModel):
 
     @property
     def frame_shape(self) -> tuple[int, int, int]:
+        """Shape of the first plane. Only the whole frame for a single-plane format."""
         return self.pix_fmt.frame_shape(self.width, self.height)
+
+    @property
+    def plane_shapes(self) -> tuple[tuple[int, int, int], ...]:
+        return self.pix_fmt.plane_shapes(self.width, self.height)
 
     @property
     def frame_nbytes(self) -> int:

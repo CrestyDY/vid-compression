@@ -17,3 +17,6 @@ class Choice(BaseModel):
     #: Post-entropy size of every candidate. Only the ``trial`` strategy fills this in,
     #: because it is the only one that runs the entropy stage.
     candidate_stored: dict[FrameType, int] = Field(default_factory=dict)
+    #: For a PLANES frame, the mode chosen for each plane in order. Empty for a
+    #: single-plane format, whose one chosen mode is ``frame_type`` itself.
+    plane_modes: tuple[FrameType, ...] = ()

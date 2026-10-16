@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.models.frame import FrameType
+from src.modes import MODES
 from src.selector import STRATEGIES, candidates, choose
 
 # ------------------------------------------------------------ which modes are legal
@@ -14,7 +15,8 @@ def test_frame_zero_cannot_use_a_predicted_mode():
 
 
 def test_later_frames_may_use_everything():
-    assert set(candidates(np.zeros((4, 4, 3), np.uint8))) == set(FrameType)
+    """Every *plane* mode. PLANES is not one; it wraps them."""
+    assert set(candidates(np.zeros((4, 4, 3), np.uint8))) == set(MODES)
 
 
 def test_enabled_restricts_the_candidate_set(solid_frame):
@@ -82,8 +84,8 @@ def test_an_unchanged_frame_chooses_pixel_delta(solid_frame):
 def test_choice_records_every_candidate_it_priced(moving_frames):
     a, b = moving_frames()[:2]
     pick = choose(b, a, strategy="trial")
-    assert set(pick.candidate_raw) == set(FrameType)
-    assert set(pick.candidate_stored) == set(FrameType)
+    assert set(pick.candidate_raw) == set(MODES)
+    assert set(pick.candidate_stored) == set(MODES)
     assert all(v > 0 for v in pick.candidate_raw.values())
 
 
