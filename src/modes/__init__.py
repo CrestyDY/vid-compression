@@ -12,6 +12,10 @@ Every mode module exposes the same three functions::
 
 ``prev`` is ``None`` for modes that don't predict from a reference frame.
 
+Every mode in :data:`MODES` codes **one plane**. ``src.modes.planes`` is deliberately not
+in the table: it wraps a tuple of planes and has its own signature, which is why it is the
+frame record's type rather than a candidate the selector ranks.
+
 ``decode`` takes no options: every mode's payload carries whatever parameters it needs in
 its own bytes. That keeps the container format stable as modes gain knobs, and means a
 decoder never has to be configured to match an encoder.
@@ -20,7 +24,7 @@ decoder never has to be configured to match an encoder.
 from __future__ import annotations
 
 from src.models.frame import FrameType
-from src.modes import block_delta, full, motion, pixel_delta, tiled
+from src.modes import block_delta, full, motion, pixel_delta, planes, tiled
 
 MODES = {
     FrameType.FULL: full,
@@ -51,8 +55,13 @@ TILEABLE = frozenset(
     }
 )
 
+#: Modes one plane of a multi-plane frame may use: everything that codes a single array.
+#: PLANES itself is excluded — a plane is already a plane.
+PLANEABLE = frozenset(MODES)
+
 __all__ = [
     "MODES",
+    "PLANEABLE",
     "PREDICTED",
     "TILEABLE",
     "FrameType",
@@ -60,5 +69,6 @@ __all__ = [
     "full",
     "motion",
     "pixel_delta",
+    "planes",
     "tiled",
 ]

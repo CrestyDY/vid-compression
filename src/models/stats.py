@@ -19,6 +19,14 @@ class CodecStats(BaseModel):
     source_bytes: int
     entropy_enabled: bool
     entropy_codec: str = "zstd"
+    #: Name of the pixel format the frames were coded in, and a note when it is not the
+    #: source's own. See src.pixfmt.for_source.
+    pix_fmt: str = "rgb24"
+    pix_fmt_note: str | None = None
+    #: Bytes in one raw frame, across every plane. Supplied by the encoder from the pixel
+    #: format rather than computed here: a subsampled format is not width*height*channels,
+    #: and this used to hardcode a 3 that only RGB24 ever justified.
+    frame_nbytes: int = 0
     #: Header plus per-frame record overhead, so the report matches the file on disk.
     container_bytes: int = 0
 
@@ -29,6 +37,10 @@ class CodecStats(BaseModel):
     stored_bytes: int = 0
     changed_pixels: int = 0
     mode_counts: dict[FrameType, int] = Field(default_factory=dict)
+    #: For a multi-plane format, the modes chosen *inside* each PLANES frame. Counted
+    #: separately rather than folded into mode_counts, so neither number has to be read
+    #: as "frames, except when it means planes".
+    plane_mode_counts: dict[FrameType, int] = Field(default_factory=dict)
 
     #: How modes were ranked. See src.selector.STRATEGIES.
     selection: str = "trial"
@@ -74,7 +86,7 @@ class CodecStats(BaseModel):
     @property
     def raw_frame_bytes(self) -> int:
         """What the frames would cost uncompressed — the baseline worth beating."""
-        return self.width * self.height * 3 * self.frames
+        return self.frame_nbytes * self.frames
 
     def record(
         self,
@@ -85,6 +97,7 @@ class CodecStats(BaseModel):
         *,
         candidate_raw: dict[FrameType, int] | None = None,
         candidate_stored: dict[FrameType, int] | None = None,
+        plane_modes: tuple[FrameType, ...] = (),
     ) -> None:
         if self.frames == 0:
             self.first_frame_stored = stored
@@ -94,6 +107,8 @@ class CodecStats(BaseModel):
         if changed is not None:
             self.changed_pixels += changed
         self.mode_counts[frame_type] = self.mode_counts.get(frame_type, 0) + 1
+        for mode in plane_modes:
+            self.plane_mode_counts[mode] = self.plane_mode_counts.get(mode, 0) + 1
 
         for mode, size in (candidate_raw or {}).items():
             self.candidate_raw[mode] = self.candidate_raw.get(mode, 0) + size

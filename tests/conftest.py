@@ -53,6 +53,59 @@ def moving_frames(solid_frame):
 
 
 @pytest.fixture
+def write_yuv_clip(tmp_path):
+    """Write a yuv420p clip and return its path, for the planar code paths.
+
+    libx264 -qp 0 *is* lossless here, because the input is already yuv420p and no colour
+    conversion happens — the same reason it is the wrong choice for an RGB clip.
+
+    Frames are given as ``(y, u, v)`` plane tuples, which is what the codec deals in.
+    """
+
+    def make(frames, fps: int = 25, name: str = "clip_yuv.mp4") -> Path:
+        path = tmp_path / name
+        height, width = frames[0][0].shape[:2]
+        cmd = [
+            "ffmpeg", "-v", "error", "-nostdin", "-y",
+            "-f", "rawvideo", "-pix_fmt", "yuv420p",
+            "-s", f"{width}x{height}", "-r", str(fps),
+            "-i", "-",
+            "-c:v", "libx264", "-qp", "0", "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            str(path),
+        ]
+        payload = b"".join(
+            b"".join(np.ascontiguousarray(p).tobytes() for p in frame)
+            for frame in frames
+        )
+        result = subprocess.run(cmd, input=payload, capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.decode(errors="replace"))
+        return path
+
+    return make
+
+
+@pytest.fixture
+def moving_yuv_frames():
+    """Four yuv420p frames: a bright block stepping right, chroma moving with it."""
+
+    def make(count: int = 4):
+        out = []
+        for i in range(count):
+            y = np.full((HEIGHT, WIDTH, 1), 40, dtype=np.uint8)
+            u = np.full((HEIGHT // 2, WIDTH // 2, 1), 110, dtype=np.uint8)
+            v = np.full((HEIGHT // 2, WIDTH // 2, 1), 130, dtype=np.uint8)
+            y[8:12, 2 + i * 4 : 6 + i * 4] = 235
+            u[4:6, 1 + i * 2 : 3 + i * 2] = 90
+            v[4:6, 1 + i * 2 : 3 + i * 2] = 200
+            out.append((y, u, v))
+        return out
+
+    return make
+
+
+@pytest.fixture
 def write_clip(tmp_path):
     """Write frames to a lossless RGB MP4 with ffmpeg and return its path.
 

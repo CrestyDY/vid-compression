@@ -46,9 +46,12 @@ def test_decode_frames_round_trips_exactly(write_clip, moving_frames):
 
     assert len(decoded) == len(original)
     for want, got in zip(original, decoded):
-        assert got.shape == (24, 32, 3)
-        assert got.dtype == np.uint8
-        assert np.array_equal(want, got)
+        # One plane, because rgb24's single plane carries all three channels. The tuple
+        # is the contract even here, so no caller has to branch on the pixel format.
+        assert len(got) == 1
+        assert got[0].shape == (24, 32, 3)
+        assert got[0].dtype == np.uint8
+        assert np.array_equal(want, got[0])
 
 
 @requires_ffmpeg
@@ -58,7 +61,7 @@ def test_decode_frames_survives_early_abandonment(write_clip, moving_frames):
 
     with decode_frames(write_clip(moving_frames())) as frames:
         first = next(iter(frames))
-    assert first.shape == (24, 32, 3)
+    assert first[0].shape == (24, 32, 3)
 
 
 @requires_ffmpeg
@@ -68,14 +71,14 @@ def test_decoded_frames_are_independently_retainable(write_clip, moving_frames):
 
     with decode_frames(write_clip(moving_frames())) as frames:
         held = list(frames)
-    assert not np.array_equal(held[0], held[-1])
+    assert not np.array_equal(held[0][0], held[-1][0])
 
 
 @requires_ffmpeg
 def test_encode_frames_lossless_round_trips_exactly(tmp_path, moving_frames):
     from src.utils.ffmpeg import decode_frames, encode_frames
 
-    original = moving_frames()
+    original = [(f,) for f in moving_frames()]
     out = tmp_path / "out.mp4"
     written = encode_frames(
         out, original, width=32, height=24, fps_num=25, fps_den=1, lossless=True
@@ -85,7 +88,7 @@ def test_encode_frames_lossless_round_trips_exactly(tmp_path, moving_frames):
     with decode_frames(out) as frames:
         decoded = list(frames)
     for want, got in zip(original, decoded):
-        assert np.array_equal(want, got)
+        assert np.array_equal(want[0], got[0])
 
 
 @requires_ffmpeg
@@ -96,6 +99,6 @@ def test_encode_frames_reports_ffmpeg_stderr_on_failure(tmp_path, moving_frames)
         # A zero width is rejected by ffmpeg; the error must carry its stderr, not a
         # BrokenPipeError traceback.
         encode_frames(
-            tmp_path / "bad.mp4", moving_frames(),
+            tmp_path / "bad.mp4", [(f,) for f in moving_frames()],
             width=0, height=0, fps_num=25, fps_den=1, lossless=True,
         )

@@ -17,6 +17,7 @@ from typing import Iterable, Iterator
 
 import numpy as np
 
+from src import pixfmt
 from src.models.pixel_format import RGB24, PixelFormat
 from src.models.video import VideoInfo
 from src.utils.errors import FFmpegError
@@ -94,7 +95,7 @@ def probe(path: str | Path) -> VideoInfo:
     cmd = [
         _require("ffprobe"), "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate,nb_frames",
+        "-show_entries", "stream=width,height,r_frame_rate,nb_frames,pix_fmt",
         "-of", "json", str(path),
     ]
     result = subprocess.run(cmd, capture_output=True)
@@ -122,32 +123,38 @@ def probe(path: str | Path) -> VideoInfo:
     nb = stream.get("nb_frames")
     num_frames = int(nb) if nb not in (None, "N/A", "") else None
 
+    pix_fmt = stream.get("pix_fmt") or None
+
     return VideoInfo(
         width=int(stream["width"]),
         height=int(stream["height"]),
         fps_num=fps_num,
         fps_den=fps_den,
         num_frames=num_frames,
+        pix_fmt=pix_fmt,
     )
 
 
 @contextmanager
 def decode_frames(
     path: str | Path, pix_fmt: PixelFormat = RGB24, info: VideoInfo | None = None
-) -> Iterator[Iterator[np.ndarray]]:
-    """Yield an iterator of decoded frames as ``(h, w, channels)`` uint8 arrays.
+) -> Iterator[Iterator[tuple[np.ndarray, ...]]]:
+    """Yield an iterator of decoded frames, each a tuple of ``(h, w, channels)`` planes.
+
+    Always a tuple, even for RGB24, whose single plane carries all three channels. A
+    one-plane tuple rather than a bare array is what keeps every caller from branching on
+    the pixel format.
 
     A context manager so the ffmpeg process is always reaped, even if the caller stops
     iterating early::
 
         with decode_frames("in.mp4") as frames:
-            for frame in frames:
+            for planes in frames:
                 ...
     """
     path = Path(path)
     info = info or probe(path)
     nbytes = pix_fmt.frame_nbytes(info.width, info.height)
-    shape = pix_fmt.frame_shape(info.width, info.height)
 
     cmd = [
         _require("ffmpeg"), "-v", "error", "-nostdin",
@@ -161,7 +168,7 @@ def decode_frames(
     drain = _drain_stderr(proc)
     drained = False  # did we read all the way to end-of-stream?
 
-    def read_frames() -> Iterator[np.ndarray]:
+    def read_frames() -> Iterator[tuple[np.ndarray, ...]]:
         nonlocal drained
         assert proc.stdout is not None
         index = 0
@@ -176,8 +183,8 @@ def decode_frames(
                 raise FFmpegError(
                     f"{path}: frame {index} is short — got {len(buf)} of {nbytes} bytes"
                 )
-            # Zero-copy, and each frame owns its own buffer, so callers may retain it.
-            yield np.frombuffer(buf, dtype=np.uint8).reshape(shape)
+            # Zero-copy views, and each frame owns its own buffer, so callers may retain it.
+            yield pixfmt.split(buf, pix_fmt, info.width, info.height)
             index += 1
 
     try:
@@ -203,7 +210,7 @@ def decode_frames(
 
 def encode_frames(
     path: str | Path,
-    frames: Iterable[np.ndarray],
+    frames: Iterable[tuple[np.ndarray, ...]],
     *,
     width: int,
     height: int,
@@ -213,6 +220,8 @@ def encode_frames(
     lossless: bool = False,
 ) -> int:
     """Pipe frames into ffmpeg to produce a playable MP4. Returns the frame count.
+
+    Each frame is a tuple of planes, as :func:`decode_frames` yields them.
 
     With ``lossless=False`` the output is a re-encode and is not byte-identical to what went
     in — it's for watching. Proving the round-trip is exact is ``verify``'s job, and it does
@@ -231,11 +240,17 @@ def encode_frames(
             f"libx264rgb and accepts odd dimensions."
         )
 
-    if lossless:
+    if lossless and pix_fmt is RGB24:
         # libx264rgb encodes RGB directly. Plain libx264 -qp 0 is only lossless *after* the
         # RGB->YUV conversion, and that conversion rounds — so it would quietly cost a pixel
         # value here and there, which defeats the point of asking for lossless.
         codec = ["-c:v", "libx264rgb", "-qp", "0", "-pix_fmt", "rgb24"]
+    elif lossless:
+        # The frames are already YUV, so the argument above inverts: libx264rgb would be
+        # the one forcing a colour conversion. Keeping the output pix_fmt equal to the
+        # input's is what makes -qp 0 actually lossless — x264 picks the profile that
+        # carries it (high422, high444) by itself.
+        codec = ["-c:v", "libx264", "-qp", "0", "-pix_fmt", pix_fmt.ffmpeg_name]
     else:
         # yuv420p so ordinary players and browsers can open the result.
         codec = ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p"]
@@ -257,8 +272,8 @@ def encode_frames(
     written = 0
     broken = False
     try:
-        for frame in frames:
-            proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+        for planes in frames:
+            proc.stdin.write(pixfmt.join(planes))
             written += 1
     except BrokenPipeError:
         # ffmpeg died early. Its exit code and stderr say why, which is far more useful

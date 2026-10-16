@@ -25,6 +25,11 @@ def verify(
 
     Stops at the first mismatch — one is enough to disprove losslessness, and reporting
     where it happened is more useful than counting how many followed.
+
+    The source is re-decoded in the .myv's *own* pixel format, which is the only
+    comparison that means anything: a file coded from `yuv420p` planes is lossless with
+    respect to those planes, and reading the source as RGB instead would compare it
+    against ffmpeg's interpolation of itself.
     """
     myv = Path(myv)
 
@@ -76,12 +81,13 @@ def verify(
                         ),
                     )
 
-                if not np.array_equal(original, reconstructed):
+                differing = _first_differing_plane(original, reconstructed)
+                if differing is not None:
                     return VerifyResult(
                         frames_checked=checked,
                         source_frames=n_src,
                         decoded_frames=n_dec,
-                        mismatch=_describe(index, original, reconstructed),
+                        mismatch=_describe(index, *differing),
                     )
                 checked += 1
 
@@ -90,7 +96,26 @@ def verify(
     )
 
 
-def _describe(index: int, original: np.ndarray, got: np.ndarray) -> Mismatch:
+def _first_differing_plane(
+    original: tuple[np.ndarray, ...], got: tuple[np.ndarray, ...]
+) -> tuple[np.ndarray, np.ndarray, int] | None:
+    """The first plane that does not match, or None when every plane does.
+
+    Per plane rather than whole-frame because the planes of a subsampled format have
+    different shapes, so there is no single array to compare — and saying *which* plane
+    broke is the first thing anyone debugging a chroma bug wants to know.
+    """
+    if len(original) != len(got):
+        return (original[0], got[0], -1)
+    for index, (a, b) in enumerate(zip(original, got)):
+        if not np.array_equal(a, b):
+            return (a, b, index)
+    return None
+
+
+def _describe(
+    index: int, original: np.ndarray, got: np.ndarray, plane: int = 0
+) -> Mismatch:
     differing = np.any(original != got, axis=2)
     ys, xs = np.nonzero(differing)
     if ys.size == 0:
@@ -100,8 +125,8 @@ def _describe(index: int, original: np.ndarray, got: np.ndarray) -> Mismatch:
             frame=index, differing_pixels=0, first_at=None, expected=None, got=None,
             max_abs_error=0,
             note=(
-                f"frame {index}: shapes differ — source {original.shape} vs "
-                f"reconstructed {got.shape}"
+                f"frame {index}, plane {plane}: shapes differ — source "
+                f"{original.shape} vs reconstructed {got.shape}"
             ),
         )
     y, x = int(ys[0]), int(xs[0])
@@ -113,4 +138,5 @@ def _describe(index: int, original: np.ndarray, got: np.ndarray) -> Mismatch:
         expected=tuple(int(v) for v in original[y, x]),
         got=tuple(int(v) for v in got[y, x]),
         max_abs_error=int(error.max()),
+        note=None if plane == 0 else f"in plane {plane}",
     )

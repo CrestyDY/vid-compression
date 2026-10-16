@@ -22,6 +22,7 @@ from typing import Iterable, Iterator
 
 import numpy as np
 
+from src import pixfmt
 from src.decoder import open_myv
 from src.models.header import Header
 from src.utils.errors import FFmpegError
@@ -65,8 +66,8 @@ def build_command(
 
 
 def select_frames(
-    frames: Iterable[np.ndarray], *, start: int, count: int
-) -> Iterator[np.ndarray]:
+    frames: Iterable[tuple[np.ndarray, ...]], *, start: int, count: int
+) -> Iterator[tuple[np.ndarray, ...]]:
     """Skip to ``start`` and yield at most ``count`` frames (0 meaning all of them).
 
     Skipping means decoding and discarding: reconstruction is sequential, so frame N needs
@@ -141,7 +142,7 @@ def play(
             try:
                 for frame in select_frames(frames, start=start, count=count):
                     try:
-                        renderer.write(np.ascontiguousarray(frame).tobytes())
+                        renderer.write(pixfmt.join(frame))
                     except BrokenPipeError:
                         # The window was closed. That is how you stop a player, not a
                         # failure worth a traceback.

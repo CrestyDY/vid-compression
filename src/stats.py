@@ -15,7 +15,10 @@ def render(stats: CodecStats) -> str:
     lines: list[str] = []
     add = lines.append
 
-    add(f"  {stats.width}x{stats.height} @ {stats.fps:.2f} fps, {stats.frames} frames")
+    add(
+        f"  {stats.width}x{stats.height} @ {stats.fps:.2f} fps, {stats.frames} frames, "
+        f"{stats.pix_fmt}"
+    )
     add(f"  source file        {human_bytes(stats.source_bytes):>12}")
     add(f"  raw frames         {human_bytes(stats.raw_frame_bytes):>12}")
     add(f"  payloads           {human_bytes(stats.raw_bytes):>12}   (before entropy)")
@@ -23,6 +26,9 @@ def render(stats: CodecStats) -> str:
     add(f"  payloads stored    {human_bytes(stats.stored_bytes):>12}   ({stage})")
     add(f"  container overhead {human_bytes(stats.container_bytes):>12}")
     add(f"  total on disk      {human_bytes(stats.total_bytes):>12}")
+
+    if stats.pix_fmt_note:
+        add(f"  note: {stats.pix_fmt_note}")
 
     if stats.raw_frame_bytes and stats.total_bytes:
         ratio = stats.raw_frame_bytes / stats.total_bytes
@@ -33,6 +39,13 @@ def render(stats: CodecStats) -> str:
         add("  modes chosen:")
         for frame_type, count in sorted(stats.mode_counts.items()):
             add(f"    {frame_type.name:<14} {count:>5}")
+
+        if stats.plane_mode_counts:
+            # A planar frame holds one mode per plane, so these count planes, not frames.
+            total = sum(stats.plane_mode_counts.values())
+            add(f"  modes chosen per plane ({total} planes):")
+            for frame_type, count in sorted(stats.plane_mode_counts.items()):
+                add(f"    {frame_type.name:<14} {count:>5}")
 
         # What each mode would have cost if it had been used for every frame it was
         # priced on. This is what makes the choice's value visible rather than implied.

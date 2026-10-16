@@ -44,7 +44,7 @@ import numpy as np
 from src.models.choice import Choice
 from src.models.frame import FrameType
 from src.models.options import DEFAULT_OPTIONS, ModeOptions
-from src.modes import MODES, PREDICTED, TILEABLE, tiled
+from src.modes import MODES, PLANEABLE, PREDICTED, TILEABLE, planes, tiled
 from src.utils import entropy
 
 #: Selection strategies, in the order they were introduced.
@@ -63,6 +63,71 @@ def candidates(
             "no usable modes for this frame; frame 0 requires FULL to be enabled"
         )
     return sorted(allowed)
+
+
+def choose_frame(
+    cur: tuple[np.ndarray, ...],
+    prev: tuple[np.ndarray, ...] | None,
+    *,
+    strategy: str = "trial",
+    enabled: frozenset[FrameType] | None = None,
+    opts: ModeOptions = DEFAULT_OPTIONS,
+    use_entropy: bool = True,
+    entropy_codec: str = "zstd",
+) -> Choice:
+    """Pick a representation for a whole frame, which is a tuple of planes.
+
+    A single-plane format delegates straight to :func:`choose` and produces exactly the
+    payload it always did, so RGB24 files are unchanged by the existence of this function.
+
+    A multi-plane format chooses per plane and wraps the results in a PLANES payload. Luma
+    and chroma are different pictures at different resolutions — chroma is smoother and
+    changes less often — so one answer for all three would lose on at least one of them,
+    the same argument TILED makes about regions of a frame.
+    """
+    if len(cur) == 1:
+        return choose(
+            cur[0], None if prev is None else prev[0],
+            strategy=strategy, enabled=enabled, opts=opts,
+            use_entropy=use_entropy, entropy_codec=entropy_codec,
+        )
+
+    allowed = PLANEABLE if enabled is None else (PLANEABLE & enabled)
+    picks = [
+        choose(
+            plane, None if prev is None else prev[index],
+            strategy=strategy, enabled=allowed, opts=opts,
+            use_entropy=use_entropy, entropy_codec=entropy_codec,
+        )
+        for index, plane in enumerate(cur)
+    ]
+    payload = planes.pack([(int(p.frame_type), p.payload) for p in picks])
+    return Choice(
+        frame_type=FrameType.PLANES,
+        payload=payload,
+        candidate_raw=_across_planes(picks, "candidate_raw"),
+        candidate_stored=_across_planes(picks, "candidate_stored"),
+        plane_modes=tuple(p.frame_type for p in picks),
+    )
+
+
+def _across_planes(picks: list[Choice], field: str) -> dict[FrameType, int]:
+    """Sum each mode's candidate cost over the planes, keeping only modes priced on all.
+
+    Dropping a mode that one plane could not use is what keeps the report's "if locked to
+    one mode" comparison honest: a total covering two planes out of three is not a price
+    for the frame.
+    """
+    per_plane = [getattr(pick, field) for pick in picks]
+    if not all(per_plane):
+        return {}
+    common = set(per_plane[0])
+    for sizes in per_plane[1:]:
+        common &= set(sizes)
+    return {
+        mode: sum(sizes[mode] for sizes in per_plane)
+        for mode in sorted(common)
+    }
 
 
 def choose(
