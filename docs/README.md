@@ -10,6 +10,8 @@
 
   strategy, and the baseline every later milestone is compared against.
 
+- **[m12-results.md](m12-results.md)** — the source-native pixel format. 1.36x on real footage, and most of the FFV1 gap closed.
+- **[next-lever.md](next-lever.md)** — the three candidate levers, each priced before any was built. Two came back too small to bother with; the third became M12.
 - **[entropy-results.md](entropy-results.md)** — a context-modelled arithmetic coder. Mostly a negative result, and what came out of it instead.
 - **[m8-results.md](m8-results.md)** — intra prediction. 1.53x on `cut`, and byte-exact agreement with the reference on all five `FULL` frames.
 - **[m5-results.md](m5-results.md)** — `TILED`. Per-region mode choice: 1.16x on `mixed`, and `screen` overtakes the reference.
@@ -47,7 +49,7 @@ byte-identically.
 
 
 
-Final on-disk size at each milestone's defaults. 320Ã—240, 60 frames, raw RGB24 = 13.18 MB,
+Final on-disk size at each milestone's defaults. 320×240, 60 frames, raw RGB24 = 13.18 MB,
 
 lossless throughout.
 
