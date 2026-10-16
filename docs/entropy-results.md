@@ -77,26 +77,18 @@ End to end, lossless throughout:
 | screen | 2,268 | **2,024** | **1.12x** | 8.3s → 158.1s |
 | cut | 231,630 | **231,234** | 1.002x | 4.1s → 234.1s |
 | slide | 382,552 | **374,089** | **1.02x** | 22.6s → 373.4s |
-| mixed | 205,814 | *not measured* | — | — |
-| noise | 7,223,174 | *not measured* | — | — |
+| mixed | 205,814 | **202,517** | 1.016x | — → 274.1s |
+| noise | 7,223,174 | **6,849,363** | **1.055x** | 38s → 1,509.5s |
 
 `screen`'s 1.12x is larger than the payload table suggests it should be, and that is the
 point: per-payload choice beats either codec used alone. On the clip where the range coder
 was 2.13x *worse* overall, selecting per payload still found 10.8%. It also puts `screen`
 back ahead of the reference implementation, at 2,024 against 2,267.
 
-> **Two rows are missing on purpose.** `mixed` and `noise` were not measured end to end,
-> because at 130–180 KB/s the arithmetic coder needs tens of minutes per clip and `noise` is
-> the largest. The payload-level table above covers them (`noise` 0.95x, `mixed` 0.99x), and
-> `noise` is the clip where the coder does best, so `auto` should gain a little more there
-> than on `slide`. Reproduce with:
->
-> ```
-> uv run vidc encode bench/clips/noise.mp4 out.myv --entropy auto
-> ```
->
-> Nothing depends on those two numbers — the conclusion below rests on the payload-level
-> measurement and the three clips that were measured.
+The last two rows took 5 and 25 minutes respectively, which is why they were filled in a
+session later than the rest. `noise` came in at **1.055x, the best of the five**, exactly as
+the payload-level table predicted it would — it is the clip where the range coder does best
+on its own (0.95x), so it is the clip with the most for `auto` to collect.
 
 ## Honest accounting
 
@@ -115,6 +107,25 @@ What FFV1 actually has that this does not:
 
 So the next honest step is not "a better arithmetic coder" but **those two specific features**,
 and the `BLOCK_DELTA` row above says the run mode is worth more than the contexts.
+
+> **Both of those conclusions were then measured, and both were wrong.**
+> [next-lever.md](next-lever.md) priced all three candidates before building any of them.
+> The run mode is break-even — the coder already spends 0.098 bits per zero byte against an
+> information-theoretic floor of 0.08 for the run structure it actually sees, and its one
+> real win is a degenerate all-zero payload where zstd already wins anyway. 2D contexts
+> simulate at 1.6% on synthetic content and 4.8% on real footage. Neither is 1.38x.
+>
+> The gap was **the pixel format**. The codec was reading `rgb24` from a `yuv420p` source,
+> so ffmpeg interpolated three quarters of the chroma and every stage here spent bytes
+> preserving the interpolation. [M12](m12-results.md) fixed that and closed the FFV1 deficit
+> from 1.77x to 1.14x at 1080p. FFV1 was never winning on entropy coding.
+>
+> It also inverted this document's central result. zstd beat the range coder on real footage
+> because chroma upsampling makes neighbouring pixels *exactly equal* in 2x2 blocks, which
+> is an LZ matcher's ideal input and nothing special to a context model. On the source's own
+> planes that structure is gone, and **the range coder wins by 1.18x** — on the one kind of
+> content that actually matters. The arithmetic coder was not a bad idea; it was being fed
+> the wrong bytes.
 
 **On speed.** Arithmetic coding is inherently sequential — each symbol's interval depends on
 the last — so unlike the rest of this codec it cannot be vectorised. In Python it runs at

@@ -71,6 +71,19 @@ lossless throughout.
 
 
 
+**M12 is absent from this table on purpose.** The five clips are `gbrp`, so the codec
+already read their own samples and the source-native pixel format left them byte-identical.
+Its 1.55x is on real footage, which these clips are not. That is also the limitation of the
+table: five synthetic clips isolate five behaviours cleanly and between them failed to
+expose the single largest deficiency in the codec for eight milestones.
+
+Real footage, `samples/real12.mp4` (1920x1080, 12 frames, `yuv420p`), lossless:
+
+| build | size | encode time | FFV1's lead | x265 lossless's lead |
+| --- | ---: | ---: | ---: | ---: |
+| M11 (`rgb24`) | 9,497,624 | 322.0s | 1.77x | 2.51x |
+| **M12 (source-native)** | **6,114,014** | **143.3s** | **1.14x** | 1.62x |
+
 Each milestone helps the clips whose weakness it addresses and leaves the others alone —
 
 the mode registry working as designed. Nothing here is a general-purpose improvement; each
